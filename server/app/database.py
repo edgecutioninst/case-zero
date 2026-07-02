@@ -24,3 +24,6 @@ class GameState(BaseModel):
     noise_level: int = 0
     entity_awareness: int = 0
     notable_events: List[str] = []
+
+    is_game_over: bool = False
+    is_game_won: bool = False

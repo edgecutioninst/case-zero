@@ -50,6 +50,57 @@ export default function GameDashboard() {
   
   const [currentRoom, setCurrentRoom] = useState<string>('village_entrance');
 
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [terminalLog, setTerminalLog] = useState([
+    { 
+      role: 'system', 
+      text: "[RADIO INCOMING] Command here. Do you copy, Rookie?\n\nBlackwood village went dark overnight. No bodies, no distress calls, just silence. We've dropped you at the perimeter with a standard-issue pistol, a torch, and 6 rounds... \n\nYour orders: Find out what happened, and neutralize the threat. Be smart. Good luck." 
+    }
+  ]);
+
+  const handlePlayerAction = async (actionText: string) => {
+    if (!actionText.trim() || isProcessing) return;
+
+    // 1. Immediately show the player's action in the terminal
+    setTerminalLog(prev => [...prev, { role: 'user', text: `> ${actionText}` }]);
+    setInputText('');
+    setShowInput(false);
+    setIsProcessing(true);
+
+    try {
+      // 2. Send the action to FastAPI
+      const response = await fetch('http://localhost:8000/api/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'rookie@gmail.com', // swap this for actual next-auth session email later
+          action: actionText
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        // Add the Game Master's response to the terminal
+        setTerminalLog(prev => [...prev, { role: 'ai', text: data.response_text }]);
+        
+        // Update the HUD visually
+        setHealth(data.updated_health);
+        setAmmo(data.updated_ammo);
+        
+        //  Move the Map Marker if the room changed
+        if (data.current_room) {
+          setCurrentRoom(data.current_room);
+        }
+      }
+    } catch (error) {
+      console.error("API Error:", error);
+      setTerminalLog(prev => [...prev, { role: 'system', text: "[ERROR] Signal lost. Unable to reach Command." }]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const intelFiles = [
     { id: 'casefile', ...intelDetails['casefile'] },
     { id: 'chief', ...intelDetails['chief'] },
@@ -147,43 +198,41 @@ export default function GameDashboard() {
         {/* ENHANCED TERMINAL OUTPUT */}
         <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
           
-          <div className="border-l-2 border-green-700/50 pl-4 py-1">
-            <p className="text-green-500 font-bold mb-3 drop-shadow-[0_0_5px_rgba(34,197,94,0.4)] tracking-wide">
-              [RADIO INCOMING] Command here. Do you copy, Rookie?
-            </p>
-            <p className="text-green-500/90 leading-relaxed text-sm mb-3">
-              Blackwood village went dark overnight. No bodies, no distress calls, just silence. 
-              We've dropped you at the perimeter with a standard-issue pistol, a torch, and 6 rounds. That's all we could authorize. If you need more ammo, you'll have to scavenge the ruins. 
-            </p>
-            <p className="text-green-500/90 leading-relaxed text-sm mb-3">
-              Check your Case Files. We've uploaded the town's satellite map, a profile on the Village Chief, and a corrupted trail-cam sighting of an unknown entity operating in the area. 
-            </p>
-            <p className="text-green-500 font-bold leading-relaxed text-sm drop-shadow-[0_0_5px_rgba(34,197,94,0.4)]">
-              Your orders: Find out what happened, and neutralize the threat. Be smart. Good luck.
-            </p>
-          </div>
+          {terminalLog.map((log, index) => (
+            <div key={index} className={log.role === 'user' ? 'text-cyan-400 text-sm ml-4' : log.role === 'system' ? 'border-l-2 border-green-700/50 pl-4 py-1 text-green-500/90 text-sm whitespace-pre-wrap' : 'text-slate-300 text-sm leading-relaxed whitespace-pre-wrap'}>
+              {log.text}
+            </div>
+          ))}
 
-          <p className="text-slate-400 text-sm [text-shadow:_0_0_10px_rgb(148_163_184_/_40%)] animate-pulse">
-            &gt; Awaiting input...
-          </p>
+          {isProcessing && (
+            <p className="text-slate-500 text-sm animate-pulse">
+              [TRANSMITTING SIGNAL...]
+            </p>
+          )}
+
+          {!isProcessing && (
+            <p className="text-slate-400 text-sm [text-shadow:_0_0_10px_rgb(148_163_184_/_40%)] animate-pulse">
+              &gt; Awaiting input...
+            </p>
+          )}
         </div>
 
         {/* Dynamic Input Area */}
         <div className="p-4 border-t border-slate-900 min-h-20 flex items-center justify-center bg-black">
           {showInput ? (
             <div className="flex items-center gap-3 w-full max-w-2xl px-2">
-              <span className="text-cyan-400 font-bold [text-shadow:_0_0_10px_rgb(34_211_238_/_60%)]">&gt;</span>
+              <span className="text-cyan-400 font-bold [text-shadow:0_0_10px_rgb(34_211_238/60%)]">&gt;</span>
               <input 
                 type="text" 
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    console.log("Sending prompt:", inputText);
-                    setInputText('');
-                    setShowInput(false);
+                    // CALL OUR NEW FUNCTION HERE
+                    handlePlayerAction(inputText);
                   }
                 }}
+                disabled={isProcessing}
                 className="w-full bg-transparent outline-none text-slate-200 focus:ring-0 placeholder:text-slate-600 [text-shadow:_0_0_8px_rgb(226_232_240_/_40%)]"
                 placeholder="Type your action and press Enter..."
                 autoFocus

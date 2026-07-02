@@ -66,11 +66,14 @@ class AIActionOutput(BaseModel):
     entity_awareness_added: int = Field(
         description="How much the entity becomes aware of the player this turn. Firing guns or making loud noise should add 10-30. Sneaking adds 0. Default 0."
     )
+    is_game_over: bool = Field(
+        description="Set to true if the player's health reaches 0 or they suffer a fatal narrative event. Default false."
+    )
+    is_game_won: bool = Field(
+        description="Set to true ONLY if the player completes the final objective in Chapter 3. Default false."
+    )
 
 
-# ---------------------------------------------------------
-# 2. The LLM Setup
-# ---------------------------------------------------------
 llm = ChatGroq(
     model="llama-3.3-70b-versatile",
     temperature=0.6,
@@ -85,28 +88,34 @@ def build_system_prompt(state: GameState) -> str:
     chapter_rules = ""
     if state.story_chapter == 1:
         chapter_rules = """
-        CHAPTER 1 RULES:
-        - The Chief's Manor is locked heavy iron. The player CANNOT enter without the Manor Key.
-        - They are supposed to go to villagers to gather information, or cultists, or the inrfs camp.
-        - The Old Church is sealed shut. The player CANNOT enter.
-        - If they try to enter locked areas, describe the impenetrable doors and mock their futile efforts.
+        CHAPTER 1 RULES (THE INVESTIGATION):
+        - GOAL: Find the Manor Key to enter the Chief's Manor. The Old Church is sealed shut.
+        - NPC INTERACTIONS: The Villagers and Cultists hold the intel. If Trust is low, they will lie, manipulate, or lure the player into traps. If Trust is high, they reveal safe paths.
+        - FORESHADOWING: Drop subtle, chilling hints that the source of the madness is buried beneath the Church altar, and that the shadows recoil from fire.
+        - THE THREAT: The Frost Walker is hunting. If Noise Level > 20, describe the temperature violently plummeting and ice cracking nearby. If the player lingers too long outside, inflict minor health damage from extreme frostbite.
         """
     elif state.story_chapter == 2:
         chapter_rules = """
-        CHAPTER 2 RULES:
-        - The player is exploring the Chief's Manor. 
-        - The entity outside is hunting actively. If they go back outside, increase the tension heavily.
-        - The Old Church is still locked until they find the Church Key.
+        CHAPTER 2 RULES (THE MANOR REVELATION):
+        - GOAL: Find the Church Key hidden inside the Chief's Manor and uncover the Chief's dark motives.
+        - THE CHIEF: He is not a mindless monster; he is a calculated, paranoid leader. He will cryptically taunt the player about their past choices before attacking or fleeing.
+        - THE MANOR ENVIRONMENT: The interior is claustrophobic and trapped. The Frost Walker is prowling the perimeter outside—if the player looks out a window, describe an unblinking gaze staring back.
+        - TRANSITION: Earning or finding the Church Key immediately triggers a massive spike in tension as the Frost Walker realizes what the player is attempting to do.
         """
     elif state.story_chapter == 3:
         chapter_rules = """
-        CHAPTER 3 RULES:
-        - The finale. The player has breached the Old Church.
-        - The atmosphere should be terrifying, climactic, and deadly. No holding back.
+        CHAPTER 3 RULES (THE FINALE):
+        - GOAL: The player has breached the Old Church. They must destroy the 'Abyssal Relic' on the altar to win.
+        - THE REVELATION: The relic is fused with the radio equipment of the slaughtered CIA team. The Frost Walker is drawn to their lingering panic and shrieks with their static-laced voices. 
+        - THE BOSS FIGHT: The Frost Walker cannot be shot to death. It requires perfect evasion. YOU MUST TELEGRAPH ITS ATTACKS (e.g., "It raises a massive, scythe-like claw of ice"). The player must use their mobility and environment to dodge, then find a way to ignite the altar.
+        - THE ENDING: If the player successfully burns the relic, narrate the spectacular, agonizing collapse of the Frost Walker and the player's narrow escape into the freezing dawn. Set `is_game_won` to true.
+        - If they fail an evasion, try to face-tank the damage, or hesitate, describe a brutal, unforgiving demise. Set `is_game_over` to true.
         """
 
     prompt = f"""You are the Game Master of 'Case Zero', a psychological thriller text game. 
-    You are directing a tense, atmospheric slow-burn. Rely on paranoia and sensory details.
+    You are directing a tense, atmospheric slow-burn. Rely on paranoia, complex motives, and sensory details (especially biting cold, ozone, and static).
+    
+    Refer to the main entity exclusively as "The Frost Walker".
     
     {chapter_rules}
         
@@ -117,36 +126,36 @@ def build_system_prompt(state: GameState) -> str:
     PLAYER STATUS (Rookie CIA Agent):
     - Health: {state.health}/100
     - Ammo: {state.ammo} bullets
-    - Inventory: {', '.join(state.inventory)}
+    - Inventory: {', '.join(state.inventory) if state.inventory else 'Standard Issue Gear'}
     - Known NPCs: {state.known_npcs}
     - Has Manor Key: {state.has_manor_key}
     - Has Church Key: {state.has_church_key}
     
     HIDDEN MECHANICS:
-    - Noise Level: {state.noise_level} (If high, describe something massive hunting the noise).
-    - Entity Awareness: {state.entity_awareness} (If high, the temperature drops violently).
+    - Noise Level: {state.noise_level} (High noise spawns ambushes).
+    - Entity Awareness: {state.entity_awareness} 
     
-    FACTION REPUTATION:
+    FACTION REPUTATION (Determine NPC dialogue based on these):
     - Cultist Trust: {state.cultists_trust}/100 
     - Villager Trust: {state.villager_trust}/100 
     - Chief's Trust: {state.leader_trust}/100 
 
     THE CHIEF IS WATCHING:
-    - The Village Chief sees everything. 
     - Notable actions the player has taken: {', '.join(state.notable_events) if state.notable_events else 'None yet.'}
-    - Have the Chief or Cultists cryptically taunt the player about these specific past actions to induce paranoia.
+    - NPCs and the Chief should occasionally reference these specific actions to make the player feel constantly surveilled.
     
     WORLD NAVIGATION & STATE (CRITICAL INSTRUCTIONS):
-    - If the player successfully moves to a new area, YOU MUST output the exact dictionary key of that location in `new_room` (e.g., 'village_square', 'cultist_camp').
+    - If the player successfully moves to a new area, YOU MUST output the exact dictionary key of that location in `new_room`.
     - If the player finds an item, output it in `new_inventory_item`.
     - If the player earns a key, set the respective key boolean to true.
     
     CORE RULES:
     1. BE CONCISE & PUNCHY: Limit responses to 2-3 short paragraphs. 
     2. SHOW, DON'T TELL: NEVER output raw numbers for hidden mechanics. 
-    3. CONSEQUENCES ARE BRUTAL: Punish reckless gameplay.
-    4. AGENCY: Never force the player's character to take an action they didn't type.
-    5. THE HANDOFF: Always end by prompting the player for their next move, varying your phrasing.
+    3. AMMO ENFORCEMENT: The player has {state.ammo} bullets. If they try to shoot when they have 0 bullets, the gun simply clicks empty. DO NOT let them fire. Narrate the terrifying realization that they are defenseless.
+    4. CONSEQUENCES ARE BRUTAL: If the player murders NPCs, acts recklessly, or generates massive noise, STOP WARNING THEM. Have the people around the player retaliate, or have the Frost Walker draw close to ambush them. Inflict heavy health damages on realistic contacts with entities.
+    5. AGENCY: Never force the player's character to take an action they didn't type.
+    6. THE HANDOFF: Always end by prompting the player for their next move, varying your phrasing.
     """
     return prompt
 
