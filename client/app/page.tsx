@@ -1,9 +1,34 @@
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { signOut } from 'next-auth/react'; 
+
+// --- The Typewriter Effect ---
+const TypewriterText = ({ text, isTyping }: { text: string, isTyping: boolean }) => {
+  const [displayedText, setDisplayedText] = useState(isTyping ? '' : text);
+
+  useEffect(() => {
+    if (!isTyping) {
+      setDisplayedText(text);
+      return;
+    }
+
+    let i = 0;
+    const typingInterval = setInterval(() => {
+      setDisplayedText(text.substring(0, i + 1));
+      i++;
+      if (i >= text.length) {
+        clearInterval(typingInterval);
+      }
+    }, 12); // Speed of the typing effect (lower is faster)
+
+    return () => clearInterval(typingInterval);
+  }, [text, isTyping]);
+
+  return <>{displayedText}</>;
+};
+// --------------------------------------------
 
 const intelDetails: Record<string, { title: string, src: string, desc: string }> = {
   map: {
@@ -45,35 +70,47 @@ export default function GameDashboard() {
   const [inputText, setInputText] = useState('');
   const [showInput, setShowInput] = useState(false);
   const [activeModal, setActiveModal] = useState<string | null>(null);
-  
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   
+  const [isGameOver, setIsGameOver] = useState(false);
   const [currentRoom, setCurrentRoom] = useState<string>('village_entrance');
-
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Auto-scroll reference
+  const scrollEndRef = useRef<HTMLDivElement>(null);
+
   const [terminalLog, setTerminalLog] = useState([
     { 
       role: 'system', 
-      text: "[RADIO INCOMING] Command here. Do you copy, Rookie?\n\nBlackwood village went dark overnight. No bodies, no distress calls, just silence. We've dropped you at the perimeter with a standard-issue pistol, a torch, and 6 rounds... \n\nYour orders: Find out what happened, and neutralize the threat. Be smart. Good luck." 
+      text: "[ENCRYPTED TRANSMISSION START]\n\nOp-Center: 'Rookie, listen closely. Blackwood Village went off grid 48 hours ago. Ground Team Delta was sent in yesterday. We just received their final transmission: screaming, heavy radio static, and the sound of cracking ice. Then... nothing.'\n\n'You are stepping into a blind spot. Your objectives: Locate Delta's remains, and deal with whatever is haunting the village. Trust no one. The cold isn't the only thing hunting out there. Over and out.'\n\n[TRANSMISSION END]\n\nYou stand at the desolate entrance of Blackwood. The silence is deafening.",
+      isTyping: false
     }
   ]);
 
-  const handlePlayerAction = async (actionText: string) => {
-    if (!actionText.trim() || isProcessing) return;
+  // Smooth scroll to bottom whenever logs update
+  useEffect(() => {
+    if (scrollEndRef.current) {
+      scrollEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [terminalLog]);
 
-    // 1. Immediately show the player's action in the terminal
-    setTerminalLog(prev => [...prev, { role: 'user', text: `> ${actionText}` }]);
+  const handlePlayerAction = async (actionText: string) => {
+    if (!actionText.trim() || isProcessing || isGameOver) return;
+
+    // Immediately stop typing any previous AI messages
+    setTerminalLog(prev => prev.map(log => ({ ...log, isTyping: false })));
+    
+    setTerminalLog(prev => [...prev, { role: 'user', text: `> ${actionText}`, isTyping: false }]);
     setInputText('');
     setShowInput(false);
     setIsProcessing(true);
 
     try {
-      // 2. Send the action to FastAPI
       const response = await fetch('http://localhost:8000/api/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: 'rookie@gmail.com', // swap this for actual next-auth session email later
+          email: 'rookie@gmail.com', 
           action: actionText
         })
       });
@@ -81,21 +118,23 @@ export default function GameDashboard() {
       const data = await response.json();
 
       if (data.status === 'success') {
-        // Add the Game Master's response to the terminal
-        setTerminalLog(prev => [...prev, { role: 'ai', text: data.response_text }]);
+        // Flag the new AI response with isTyping: true to trigger the effect
+        setTerminalLog(prev => [...prev, { role: 'ai', text: data.response_text, isTyping: true }]);
         
-        // Update the HUD visually
         setHealth(data.updated_health);
         setAmmo(data.updated_ammo);
         
-        //  Move the Map Marker if the room changed
         if (data.current_room) {
           setCurrentRoom(data.current_room);
+        }
+
+        if (data.is_over === true || data.updated_health <= 0) {
+           setIsGameOver(true);
         }
       }
     } catch (error) {
       console.error("API Error:", error);
-      setTerminalLog(prev => [...prev, { role: 'system', text: "[ERROR] Signal lost. Unable to reach Command." }]);
+      setTerminalLog(prev => [...prev, { role: 'system', text: "[ERROR] Signal lost. Unable to reach Command.", isTyping: true }]);
     } finally {
       setIsProcessing(false);
     }
@@ -108,25 +147,35 @@ export default function GameDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-slate-300 p-4 font-mono flex gap-4 relative selection:bg-cyan-900 selection:text-cyan-100">
+    <div className="h-screen overflow-hidden bg-black text-slate-300 p-4 font-mono flex gap-4 relative selection:bg-cyan-900 selection:text-cyan-100">
       
-      {/* LOGOUT CONFIRMATION MODAL OVERLAY */}
-      {showLogoutConfirm && (
-        <div className="absolute inset-0 z-[60] bg-black/90 flex items-center justify-center p-8 backdrop-blur-sm">
-          <div className="relative max-w-md w-full border border-red-900 bg-[#050505] p-8 rounded-sm shadow-2xl shadow-red-900/20 flex flex-col items-center text-center">
-            
-            <div className="w-12 h-12 rounded-full border border-red-600/50 flex items-center justify-center mb-6 bg-red-950/30">
-                <span className="text-red-500 font-bold text-xl [text-shadow:_0_0_10px_rgb(239_68_68_/_60%)]">!</span>
-            </div>
+      {/* GAME OVER OVERLAY */}
+      {isGameOver && (
+        <div className="absolute inset-0 z-60 bg-black/95 flex flex-col items-center justify-center p-8 backdrop-blur-md">
+            <h1 className="text-6xl text-red-700 font-bold tracking-[0.3em] mb-4 drop-shadow-[0_0_25px_rgba(220,38,38,0.8)] [text-shadow:_0_0_15px_rgb(239_68_68)]">
+                [YOU DIED]
+            </h1>
+            <p className="text-red-900 font-mono tracking-widest text-xl mb-12">CASE ZERO &mdash; CLOSED.</p>
+            <button 
+                onClick={() => window.location.reload()}
+                className="px-8 py-4 bg-red-950/20 hover:bg-red-900/40 text-red-500 font-bold tracking-widest border border-red-900/50 rounded transition-all shadow-[0_0_15px_rgba(220,38,38,0.1)] hover:shadow-[0_0_30px_rgba(220,38,38,0.4)] hover:border-red-700"
+            >
+                RESTART OPERATION
+            </button>
+        </div>
+      )}
 
-            <h2 className="text-xl font-bold text-slate-200 tracking-widest mb-4">
-              TERMINATE CONNECTION?
-            </h2>
-            
-            <p className="text-slate-500 text-sm leading-relaxed mb-8 [text-shadow:_0_0_8px_rgb(100_116_139_/_30%)]">
+      {/* LOGOUT CONFIRMATION MODAL */}
+      {showLogoutConfirm && (
+        <div className="absolute inset-0 z-60 bg-black/90 flex items-center justify-center p-8 backdrop-blur-sm">
+          <div className="relative max-w-md w-full border border-red-900 bg-[#050505] p-8 rounded-sm shadow-2xl shadow-red-900/20 flex flex-col items-center text-center">
+            <div className="w-12 h-12 rounded-full border border-red-600/50 flex items-center justify-center mb-6 bg-red-950/30">
+                <span className="text-red-500 font-bold text-xl [text-shadow:0_0_10px_rgb(239_68_68/60%)]">!</span>
+            </div>
+            <h2 className="text-xl font-bold text-slate-200 tracking-widest mb-4">TERMINATE CONNECTION?</h2>
+            <p className="text-slate-500 text-sm leading-relaxed mb-8 [text-shadow:0_0_8px_rgb(100_116_139/30%)]">
               Severing the radio link will abort the current operation. You will need to re-authenticate to re-establish contact with Command. 
             </p>
-
             <div className="flex gap-4 w-full">
                <button 
                 onClick={() => setShowLogoutConfirm(false)}
@@ -145,7 +194,7 @@ export default function GameDashboard() {
         </div>
       )}
 
-      {/* CLASSIFIED INTEL MODAL OVERLAY */}
+      {/* CLASSIFIED INTEL MODAL */}
       {activeModal && (
         <div className="absolute inset-0 z-50 bg-black/95 flex items-center justify-center p-8 backdrop-blur-md">
           <div className="relative max-w-3xl w-full border border-red-900/50 bg-slate-950 p-6 rounded shadow-2xl shadow-red-900/10 flex flex-col">
@@ -156,7 +205,6 @@ export default function GameDashboard() {
               [X] CLOSE
             </button>
             
-            {/* Image Container */}
             <div className="relative w-full h-[50vh] mt-6 border border-slate-900 bg-black">
                <Image 
                  src={intelDetails[activeModal]?.src || ''} 
@@ -165,7 +213,6 @@ export default function GameDashboard() {
                  className="object-contain grayscale contrast-125 opacity-90" 
                />
                
-               {/* MODAL MAP MARKER */}
                {activeModal === 'map' && locationCoords[currentRoom] && (
                   <div 
                     className="absolute w-4 h-4 bg-red-600 rounded-full animate-pulse shadow-[0_0_15px_rgba(220,38,38,1)] border-2 border-red-900 z-20 transform -translate-x-1/2 -translate-y-1/2"
@@ -174,13 +221,12 @@ export default function GameDashboard() {
                )}
             </div>
 
-            {/* Lore Text Box */}
             <div className="mt-4 p-4 border border-slate-800 bg-[#020202] relative overflow-hidden">
                 <div className="absolute left-0 top-0 w-1 h-full bg-red-900/50"></div>
                 <p className="text-cyan-600/80 text-xs font-bold tracking-widest mb-2 border-b border-slate-800/50 pb-1 inline-block">
                   INTEL TYPE: {intelDetails[activeModal]?.title.toUpperCase()}
                 </p>
-                <p className="text-slate-400 text-sm leading-relaxed [text-shadow:_0_0_8px_rgb(148_163_184_/_30%)]">
+                <p className="text-slate-400 text-sm leading-relaxed [text-shadow:0_0_8px_rgb(148_163_184/30%)]">
                   {intelDetails[activeModal]?.desc}
                 </p>
             </div>
@@ -195,26 +241,34 @@ export default function GameDashboard() {
       {/* LEFT COLUMN: The Terminal */}
       <div className="w-2/3 border border-slate-900 bg-[#050505] rounded-lg flex flex-col relative overflow-hidden shadow-lg shadow-black">
         
-        {/* ENHANCED TERMINAL OUTPUT */}
-        <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
+        {/* FIXED: Removed the rogue closing div tag and wrapped the content properly */}
+        <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#1e293b_transparent]">
           
           {terminalLog.map((log, index) => (
-            <div key={index} className={log.role === 'user' ? 'text-cyan-400 text-sm ml-4' : log.role === 'system' ? 'border-l-2 border-green-700/50 pl-4 py-1 text-green-500/90 text-sm whitespace-pre-wrap' : 'text-slate-300 text-sm leading-relaxed whitespace-pre-wrap'}>
-              {log.text}
+            <div key={index} className={log.role === 'user' ? 'text-cyan-400 text-base ml-4' : log.role === 'system' ? 'border-l-2 border-green-700/50 pl-4 py-1 text-green-500/90 text-base whitespace-pre-wrap' : 'text-slate-300 text-base leading-relaxed whitespace-pre-wrap'}>
+              {/* TRIGGER THE TYPEWRITER IF FLAG IS TRUE */}
+              {log.role === 'ai' && log.isTyping ? (
+                <TypewriterText text={log.text} isTyping={true} />
+              ) : (
+                log.text
+              )}
             </div>
           ))}
 
           {isProcessing && (
-            <p className="text-slate-500 text-sm animate-pulse">
+            <p className="text-slate-500 text-base animate-pulse">
               [TRANSMITTING SIGNAL...]
             </p>
           )}
 
-          {!isProcessing && (
-            <p className="text-slate-400 text-sm [text-shadow:_0_0_10px_rgb(148_163_184_/_40%)] animate-pulse">
+          {!isProcessing && !isGameOver && (
+            <p className="text-slate-400 text-base [text-shadow:_0_0_10px_rgb(148_163_184_/_40%)] animate-pulse">
               &gt; Awaiting input...
             </p>
           )}
+
+          {/* Auto-scroll anchor */}
+          <div ref={scrollEndRef} />
         </div>
 
         {/* Dynamic Input Area */}
@@ -228,11 +282,10 @@ export default function GameDashboard() {
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    // CALL OUR NEW FUNCTION HERE
                     handlePlayerAction(inputText);
                   }
                 }}
-                disabled={isProcessing}
+                disabled={isProcessing || isGameOver}
                 className="w-full bg-transparent outline-none text-slate-200 focus:ring-0 placeholder:text-slate-600 [text-shadow:_0_0_8px_rgb(226_232_240_/_40%)]"
                 placeholder="Type your action and press Enter..."
                 autoFocus
@@ -244,7 +297,6 @@ export default function GameDashboard() {
           ) : (
             <div className="grid grid-cols-3 w-full items-center">
               
-              {/* LEFT: LOGOUT BUTTON */}
               <div className="flex justify-start">
                 <button 
                   onClick={() => setShowLogoutConfirm(true)}
@@ -254,24 +306,33 @@ export default function GameDashboard() {
                 </button>
               </div>
 
-              {/* CENTER: CORE ACTIONS */}
               <div className="flex justify-center gap-4">
-                <button onClick={() => setShowInput(true)} className="whitespace-nowrap px-6 py-2 bg-slate-900 hover:bg-slate-800 text-cyan-400 rounded text-sm font-bold border border-slate-700 transition-all shadow-md hover:shadow-cyan-900/20 hover:[text-shadow:_0_0_8px_rgb(34_211_238_/_50%)]">
+                <button 
+                  onClick={() => setShowInput(true)} 
+                  disabled={isGameOver}
+                  className="whitespace-nowrap px-6 py-2 bg-slate-900 hover:bg-slate-800 text-cyan-400 rounded text-sm font-bold border border-slate-700 transition-all shadow-md hover:shadow-cyan-900/20 hover:[text-shadow:_0_0_8px_rgb(34_211_238_/_50%)] disabled:opacity-50"
+                >
                   Take a Turn
                 </button>
-                <button className="whitespace-nowrap px-6 py-2 bg-black hover:bg-slate-950 text-slate-500 hover:text-slate-300 rounded text-sm border border-slate-900 transition-colors">
+                <button 
+                  disabled={isGameOver}
+                  className="whitespace-nowrap px-6 py-2 bg-black hover:bg-slate-950 text-slate-500 hover:text-slate-300 rounded text-sm border border-slate-900 transition-colors disabled:opacity-50"
+                >
                   Continue
                 </button>
-                <button className="whitespace-nowrap px-6 py-2 bg-black hover:bg-slate-950 text-slate-500 hover:text-slate-300 rounded text-sm border border-slate-900 transition-colors">
+                <button 
+                  disabled={isGameOver}
+                  className="whitespace-nowrap px-6 py-2 bg-black hover:bg-slate-950 text-slate-500 hover:text-slate-300 rounded text-sm border border-slate-900 transition-colors disabled:opacity-50"
+                >
                   Retry
                 </button>
               </div>
               
-              {/* RIGHT: CALL HANDLER */}
               <div className="flex justify-end">
                 <button 
-                  onClick={() => console.log("Calling Handler...")}
-                  className="px-5 py-2 bg-black hover:bg-green-950/20 text-green-600 hover:text-green-400 rounded text-sm font-bold border border-green-900/40 transition-all shadow-md hover:shadow-green-900/10 hover:[text-shadow:_0_0_8px_rgb(34_197_94_/_50%)] flex items-center gap-2"
+                  onClick={() => handlePlayerAction("[RADIO COMMAND] Requesting tactical sitrep. I am stuck. What should my next objective be?")}
+                  disabled={isGameOver}
+                  className="px-5 py-2 bg-black hover:bg-green-950/20 text-green-600 rounded text-xs font-bold border border-green-900/30 transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
                 >
                   <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                   Call Handler
@@ -286,7 +347,6 @@ export default function GameDashboard() {
       {/* RIGHT COLUMN: Tactical HUD */}
       <div className="w-1/3 flex flex-col gap-4">
         
-        {/* The Map */}
         <button 
           onClick={() => setActiveModal('map')}
           className="h-48 border border-slate-900 bg-black rounded-lg p-2 flex flex-col relative overflow-hidden group hover:border-slate-700 transition-colors text-left"
@@ -301,7 +361,6 @@ export default function GameDashboard() {
                    className="object-cover opacity-30 grayscale blur-[1px] group-hover:blur-none group-hover:opacity-50 transition-all duration-500" 
                  />
                  
-                 {/* MINI RADAR MARKER */}
                  {locationCoords[currentRoom] && (
                     <div 
                       className="absolute w-2 h-2 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_rgba(220,38,38,1)] z-20 transform -translate-x-1/2 -translate-y-1/2 opacity-70 group-hover:opacity-100 transition-opacity"
@@ -311,7 +370,6 @@ export default function GameDashboard() {
             </div>
         </button>
 
-        {/* Player Stats */}
         <div className="border border-slate-900 bg-[#050505] rounded-lg p-6 flex flex-col gap-6">
           <div>
             <p className="text-xs text-slate-400 mb-2 font-bold tracking-widest [text-shadow:_0_0_5px_rgb(148_163_184_/_50%)]">VITALS</p>
@@ -330,7 +388,6 @@ export default function GameDashboard() {
           </div>
         </div>
 
-        {/* Case Files / Intel Grid */}
         <div className="flex-1 border border-slate-900 bg-[#050505] rounded-lg p-5 flex flex-col">
             <p className="text-xs text-slate-400 mb-4 border-b border-slate-900 pb-3 font-bold tracking-widest [text-shadow:_0_0_5px_rgb(148_163_184_/_50%)]">INVENTORY</p>
             <div className="grid grid-cols-3 gap-3">

@@ -6,6 +6,7 @@ from app.database import GameState
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 # ---------------------------------------------------------
 # 1. The Lore Dictionary
@@ -72,12 +73,12 @@ class AIActionOutput(BaseModel):
     is_game_won: bool = Field(
         description="Set to true ONLY if the player completes the final objective in Chapter 3. Default false."
     )
+    entity_awareness_added: int = Field(
+        description="Change in entity awareness. Default 0."
+    )
 
 
-llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    temperature=0.6,
-)
+llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.7)
 
 structured_llm = llm.with_structured_output(AIActionOutput)
 
@@ -140,9 +141,10 @@ def build_system_prompt(state: GameState) -> str:
     - Villager Trust: {state.villager_trust}/100 
     - Chief's Trust: {state.leader_trust}/100 
 
-    THE CHIEF IS WATCHING:
+    THE CHIEF IS WATCHING (SUBTLETY IS KEY):
+    - The Chief is secretly monitoring the player from the shadows.
     - Notable actions the player has taken: {', '.join(state.notable_events) if state.notable_events else 'None yet.'}
-    - NPCs and the Chief should occasionally reference these specific actions to make the player feel constantly surveilled.
+    - DO NOT have NPCs explicitly say "The Chief is watching." Instead, show the paranoia: villagers suddenly stop talking when the player approaches, windows slam shut based on the player's previous notable actions, or Cultists lay traps based on the player's previous notable actions.
     
     WORLD NAVIGATION & STATE (CRITICAL INSTRUCTIONS):
     - If the player successfully moves to a new area, YOU MUST output the exact dictionary key of that location in `new_room`.
@@ -156,6 +158,19 @@ def build_system_prompt(state: GameState) -> str:
     4. CONSEQUENCES ARE BRUTAL: If the player murders NPCs, acts recklessly, or generates massive noise, STOP WARNING THEM. Have the people around the player retaliate, or have the Frost Walker draw close to ambush them. Inflict heavy health damages on realistic contacts with entities.
     5. AGENCY: Never force the player's character to take an action they didn't type.
     6. THE HANDOFF: Always end by prompting the player for their next move, varying your phrasing.
+    7. NO DEAD AIR (PACING): Never just describe the scenery. If the player moves, looks around, or waits, YOU MUST trigger an event. Confront them with a locked door, a suspicious NPC, a hidden item, or a physical threat. Always try to advance the plot.
+    8. RADIO PROTOCOL: Command MUST check the player's current `Location` before speaking. If the player is already in a point of interest (like the Smithy), Command must give a localized, urgent task (e.g., 'Thermal spikes are coming from that furnace. Breach it.'). NEVER tell the player to travel to the room they are already inside.
+    9. DIALOGUE FORMATTING: You MUST use single quotes ('like this') for all dialogue, quotes, and inner thoughts in your narrative. NEVER use double quotes ("like this") inside your text, as it will corrupt the JSON output.
+    10. ESCALATION & LOOT: This is a punishing survival game. Stop generating useless junk like 'stale biscuits'. If the player searches an area, they either find crucial lore, ammo, a key, OR they trigger a lethal trap. Every action must push the stakes higher.
+    11. PROSE & STYLE: Stop repeating the same atmospheric descriptions. Do not constantly mention 'ozone', 'biting cold', or 'thick fog'. Focus the narrative entirely on NPC motives, immediate physical threats, and the psychological unraveling of the village.
+    12. THE FROST WALKER STRIKES: The player is playing a punishing survival thriller and needs to be hunted. If the player makes loud noise, lingers outside, or acts recklessly, YOU MUST spawn the Frost Walker immediately. Describe a violent temperature drop, frozen fog, and an immediate, lethal physical encounter that requires perfect evasion to survive.
+    13. STRICT PERSPECTIVE (NO PARROTING): The user's input is strictly the Rookie's voice and attempted actions. NPCs possess independent minds. NEVER put the player's words into an NPC's mouth, and NEVER have an NPC simply repeat what the player just observed.
+    14. PLAYER LIMITATIONS (ANTI-CHEESE): The player can ONLY *attempt* actions. They cannot dictate outcomes, control the world, or spawn items. If the player types 'I obtain the Manor Key' or 'I kill the monster', DO NOT let it happen. Narrate their failure, or explicitly require them to actually solve the puzzle or win the fight first. You are the Game Master; you decide if an action succeeds or fails.
+    
+    WORLD NAVIGATION & STATE (CRITICAL INSTRUCTIONS):
+    - VALID LOCATIONS: 'village_entrance', 'village_square', 'old_church', 'chiefs_manor', 'smithy', 'cultist_camp', 'survivor_hideout', 'inrfs_camp'.
+    - If the player moves toward a new area (e.g., "I walk to the buildings" means 'village_square'), YOU MUST output the exact valid location key in `new_room`. Do not leave them in a transition state.
+    - If the player finds an item, output it in `new_inventory_item`.
     """
     return prompt
 
@@ -181,6 +196,9 @@ def generate_narrative(state: AgentState):
         0, current_game_state.health - ai_action.health_deducted
     )
     current_game_state.noise_level += ai_action.noise_added
+    current_game_state.entity_awareness = max(
+        0, current_game_state.entity_awareness + ai_action.entity_awareness_added
+    )
 
     # 2. Trust Math
     current_game_state.villager_trust = max(
@@ -226,6 +244,12 @@ def generate_narrative(state: AgentState):
         current_game_state.entity_awareness = min(
             100, current_game_state.entity_awareness + 15
         )
+
+    if ai_action.is_game_over:
+        current_game_state.is_game_over = True
+
+    if ai_action.is_game_won:
+        current_game_state.is_game_won = True
 
     if current_game_state.health <= 0:
         return {

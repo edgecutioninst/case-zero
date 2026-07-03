@@ -57,10 +57,19 @@ def process_turn(data: PlayerAction):
 
     # 3. RUN THE GAME MASTER
     print(f"Running AI for {data.email}...")
-    ai_response = game_engine.invoke(ai_input)
+    max_retries = 3
+    final_text = ""
 
-    # 4. Extract the generated text from the AI's final message
-    final_text = ai_response["messages"][-1].content
+    for attempt in range(max_retries):
+        try:
+            ai_response = game_engine.invoke(ai_input)
+            final_text = ai_response["messages"][-1].content
+            break
+
+        except Exception as e:
+            print(f"AI Generation Error (Attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt == max_retries - 1:
+                final_text = "A sudden, violent spike of static rings in your ears, causing your vision to blur. You lose your train of thought. \n\n[TERMINAL ERROR: Data corruption detected. Please rephrase your last action.]"
 
     return {
         "status": "success",
@@ -76,9 +85,11 @@ def process_turn(data: PlayerAction):
         # UI Navigation & Inventory
         "current_room": current_state.current_room,
         "inventory": current_state.inventory,
-        # Lore & Progression (To show in a "Journal" UI later)
+        # Lore & Progression
         "known_npcs": current_state.known_npcs,
         "story_chapter": current_state.story_chapter,
         "has_manor_key": current_state.has_manor_key,
         "has_church_key": current_state.has_church_key,
+        "is_over": current_state.is_game_over,
+        "is_won": current_state.is_game_won,
     }
