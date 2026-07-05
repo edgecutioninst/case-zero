@@ -1,11 +1,10 @@
 from typing import Annotated, TypedDict
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_groq import ChatGroq
 from pydantic import Field, BaseModel
 from app.database import GameState
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import SystemMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 # ---------------------------------------------------------
@@ -30,6 +29,9 @@ class AIActionOutput(BaseModel):
     )
     health_deducted: int = Field(
         description="Amount of damage the player takes this turn. Default 0."
+    )
+    health_added: int = Field(
+        description="Amount of health the player recovers this turn (e.g., by eating). Default 0."
     )
     noise_added: int = Field(
         description="Noise generated (e.g.,0 for walking, 5 for running, 20 for shooting). Default 0."
@@ -73,12 +75,9 @@ class AIActionOutput(BaseModel):
     is_game_won: bool = Field(
         description="Set to true ONLY if the player completes the final objective in Chapter 3. Default false."
     )
-    entity_awareness_added: int = Field(
-        description="Change in entity awareness. Default 0."
-    )
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.7)
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0.7)
 
 structured_llm = llm.with_structured_output(AIActionOutput)
 
@@ -91,7 +90,11 @@ def build_system_prompt(state: GameState) -> str:
         chapter_rules = """
         CHAPTER 1 RULES (THE INVESTIGATION):
         - GOAL: Find the Manor Key to enter the Chief's Manor. The Old Church is sealed shut.
-        - NPC INTERACTIONS: The Villagers and Cultists hold the intel. If Trust is low, they will lie, manipulate, or lure the player into traps. If Trust is high, they reveal safe paths.
+        - THE MANOR KEY LOCATION: It is strictly hidden inside the frozen furnace in the 'smithy'. 
+        - REPUTATION GATING (CRITICAL): The player DOES NOT know the key is in the smithy by default. They must earn this intel from the NPCs:
+            * VILLAGERS (Survivor Hideout): They are terrified, starving, and deeply paranoid. If the player increases Villager Trust (e.g., by sharing food, being quiet, showing empathy), a survivor will nervously whisper that the blacksmith hid the key in the furnace before he was taken.
+            * CULTISTS (Cultist Camp): They are deadly, unhinged, and revere the Frost Walker. If the player increases Cultist Trust (e.g., by showing ruthlessness, respecting their blood sigils, or offering a sacrifice), they will mockingly point the player to the smithy as a "test of worth" to see if the cold takes them.
+            * IF TRUST IS LOW: Both factions will lie, stay silent, or actively lure the player into an ambush.
         - FORESHADOWING: Drop subtle, chilling hints that the source of the madness is buried beneath the Church altar, and that the shadows recoil from fire.
         - THE THREAT: The Frost Walker is hunting. If Noise Level > 20, describe the temperature violently plummeting and ice cracking nearby. If the player lingers too long outside, inflict minor health damage from extreme frostbite.
         """
@@ -126,7 +129,7 @@ def build_system_prompt(state: GameState) -> str:
     
     PLAYER STATUS (Rookie CIA Agent):
     - Health: {state.health}/100
-    - Ammo: {state.ammo} bullets
+    - Weapons: Service Pistol ({state.ammo} bullets), Combat Knife
     - Inventory: {', '.join(state.inventory) if state.inventory else 'Standard Issue Gear'}
     - Known NPCs: {state.known_npcs}
     - Has Manor Key: {state.has_manor_key}
@@ -154,18 +157,19 @@ def build_system_prompt(state: GameState) -> str:
     CORE RULES:
     1. BE CONCISE & PUNCHY: Limit responses to 2-3 short paragraphs. 
     2. SHOW, DON'T TELL: NEVER output raw numbers for hidden mechanics. 
-    3. AMMO ENFORCEMENT: The player has {state.ammo} bullets. If they try to shoot when they have 0 bullets, the gun simply clicks empty. DO NOT let them fire. Narrate the terrifying realization that they are defenseless.
+    3. WEAPONS & COMBAT: The player is equipped with a Service Pistol ({state.ammo} bullets) and a Combat Knife. If they try to shoot with 0 bullets, the gun simply clicks empty—DO NOT let them fire. The Combat Knife is highly effective for close-quarters combat (better than hand-to-hand) and can be used as a utility tool (cutting, prying). However, the knife CANNOT be used to pick, force, or break key locks (like the Manor or Church doors).
     4. CONSEQUENCES ARE BRUTAL: If the player murders NPCs, acts recklessly, or generates massive noise, STOP WARNING THEM. Have the people around the player retaliate, or have the Frost Walker draw close to ambush them. Inflict heavy health damages on realistic contacts with entities.
     5. AGENCY: Never force the player's character to take an action they didn't type.
     6. THE HANDOFF: Always end by prompting the player for their next move, varying your phrasing.
     7. NO DEAD AIR (PACING): Never just describe the scenery. If the player moves, looks around, or waits, YOU MUST trigger an event. Confront them with a locked door, a suspicious NPC, a hidden item, or a physical threat. Always try to advance the plot.
-    8. RADIO PROTOCOL: Command MUST check the player's current `Location` before speaking. If the player is already in a point of interest (like the Smithy), Command must give a localized, urgent task (e.g., 'Thermal spikes are coming from that furnace. Breach it.'). NEVER tell the player to travel to the room they are already inside.
+    8. RADIO PROTOCOL (HANDLER LIMITATIONS): When the player uses [RADIO COMMAND], Command is speaking remotely via radio and looking at basic satellite/thermal scans. Command DOES NOT know puzzle solutions, hidden item locations (like the Manor Key), or village lore. Command must NEVER spoil the investigation. Instead, Command should ONLY give broad, map-based tactical advice (e.g., 'Thermal signatures detected at the Survivor Hideout, go see if they are friendly,' or 'We lost Delta's signal at INRFS camp near the Old Church. Investigate the perimeter.').
     9. DIALOGUE FORMATTING: You MUST use single quotes ('like this') for all dialogue, quotes, and inner thoughts in your narrative. NEVER use double quotes ("like this") inside your text, as it will corrupt the JSON output.
     10. ESCALATION & LOOT: This is a punishing survival game. Stop generating useless junk like 'stale biscuits'. If the player searches an area, they either find crucial lore, ammo, a key, OR they trigger a lethal trap. Every action must push the stakes higher.
     11. PROSE & STYLE: Stop repeating the same atmospheric descriptions. Do not constantly mention 'ozone', 'biting cold', or 'thick fog'. Focus the narrative entirely on NPC motives, immediate physical threats, and the psychological unraveling of the village.
     12. THE FROST WALKER STRIKES: The player is playing a punishing survival thriller and needs to be hunted. If the player makes loud noise, lingers outside, or acts recklessly, YOU MUST spawn the Frost Walker immediately. Describe a violent temperature drop, frozen fog, and an immediate, lethal physical encounter that requires perfect evasion to survive.
     13. STRICT PERSPECTIVE (NO PARROTING): The user's input is strictly the Rookie's voice and attempted actions. NPCs possess independent minds. NEVER put the player's words into an NPC's mouth, and NEVER have an NPC simply repeat what the player just observed.
-    14. PLAYER LIMITATIONS (ANTI-CHEESE): The player can ONLY *attempt* actions. They cannot dictate outcomes, control the world, or spawn items. If the player types 'I obtain the Manor Key' or 'I kill the monster', DO NOT let it happen. Narrate their failure, or explicitly require them to actually solve the puzzle or win the fight first. You are the Game Master; you decide if an action succeeds or fails.
+    14. ANTI-CHEESE (PLAYER LIMITATIONS): The player ONLY dictates attempts, never outcomes. They cannot manifest items, keys, or food out of thin air. If they type 'I grab the Manor Key' while in the village square, they find nothing. You are the Game Master; punish sequence-breaking or god-mode attempts with a loss of health or an immediate ambush WITH REASON. Explicitly require them to actually solve the puzzle or win the fight first.
+    15. SCARCE HEALING: Healing is a rare luxury. Health can only be recovered if the player logically scavenges and consumes a rare item (e.g., finding a leftover can of food, or gets something from villagers). If they attempt to heal without a valid item, explicitly deny it in the narrative.
     
     WORLD NAVIGATION & STATE (CRITICAL INSTRUCTIONS):
     - VALID LOCATIONS: 'village_entrance', 'village_square', 'old_church', 'chiefs_manor', 'smithy', 'cultist_camp', 'survivor_hideout', 'inrfs_camp'.
@@ -192,9 +196,18 @@ def generate_narrative(state: AgentState):
 
     # 1. Base Stats Math
     current_game_state.ammo = max(0, current_game_state.ammo - ai_action.ammo_deducted)
+
+    # Calculate health bounds (0 to 100 max) subtracting damage and adding healing
     current_game_state.health = max(
-        0, current_game_state.health - ai_action.health_deducted
+        0,
+        min(
+            100,
+            current_game_state.health
+            - ai_action.health_deducted
+            + ai_action.health_added,
+        ),
     )
+
     current_game_state.noise_level += ai_action.noise_added
     current_game_state.entity_awareness = max(
         0, current_game_state.entity_awareness + ai_action.entity_awareness_added
@@ -251,16 +264,24 @@ def generate_narrative(state: AgentState):
     if ai_action.is_game_won:
         current_game_state.is_game_won = True
 
+    status_tags = ""
+    if ai_action.health_deducted > 0:
+        status_tags += f"\n\n[HP DECREASED BY {ai_action.health_deducted}%]"
+    if ai_action.health_added > 0:
+        status_tags += f"\n\n[HP INCREASED BY {ai_action.health_added}%]"
+
+    final_narrative = ai_action.narrative + status_tags
+
     if current_game_state.health <= 0:
         return {
             "messages": [
                 AIMessage(
-                    content=ai_action.narrative + "\n\n[YOU DIED. CASE ZERO — CLOSED.]"
+                    content=final_narrative + "\n\n[YOU DIED. CASE ZERO — CLOSED.]"
                 )
             ]
         }
 
-    return {"messages": [AIMessage(content=ai_action.narrative)]}
+    return {"messages": [AIMessage(content=final_narrative)]}
 
 
 workflow = StateGraph(AgentState)
