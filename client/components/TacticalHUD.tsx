@@ -20,7 +20,7 @@ export default function TacticalHUD({
         {locationCoords[currentRoom] && (
           <div className="absolute z-20 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 transition-all duration-700 ease-in-out" style={{ top: locationCoords[currentRoom].top, left: locationCoords[currentRoom].left }}>
             <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse shadow-[0_0_15px_rgba(220,38,38,1)] border-2 border-red-900" />
-            <span className="text-[8px] font-bold text-red-500 bg-black/80 px-1 py-0.5 rounded border border-red-900/50 whitespace-nowrap [text-shadow:_0_0_5px_rgb(239_68_68_/_80%)]">YOU ARE HERE</span>
+            <span className="text-[8px] font-bold text-red-500 bg-black/80 px-1 py-0.5 rounded border border-red-900/50 whitespace-nowrap [text-shadow:0_0_5px_rgb(239_68_68/80%)]">YOU ARE HERE</span>
           </div>
         )}
       </div>
@@ -41,7 +41,7 @@ export default function TacticalHUD({
               <p className="text-xs text-slate-400 font-bold tracking-widest">AMMUNITION</p>
               <p className="text-[13px] text-yellow-500 font-bold tracking-wider">{ammo} BULLET{ammo !== 1 ? 'S' : ''}</p>
             </div>
-            <div className="flex gap-2 items-center flex-wrap min-h-[20px]">
+            <div className="flex gap-2 items-center flex-wrap min-h-5">
               {ammo > 0 ? Array.from({ length: ammo }).map((_, i) => (
                   <div key={`bullet-${i}`} className="h-5 w-2.5 bg-yellow-300/80 rounded-sm shadow-[0_0_8px_rgba(202,138,4,0.4)] border border-yellow-900/50"></div>
                 )) : <span className="text-red-600 text-[10px] font-bold tracking-widest animate-pulse">[EMPTY]</span>}
@@ -49,7 +49,7 @@ export default function TacticalHUD({
           </div>
           <div className="w-1/2 pl-4 flex flex-col justify-between">
              <p className="text-xs text-slate-400 font-bold tracking-widest mb-3">COMBAT KNIFE</p>
-             <div className="h-full w-full min-h-[44px] flex items-center justify-center border border-slate-800 bg-black rounded-sm relative group overflow-hidden shadow-inner shadow-black transition-all hover:border-slate-600">
+             <div className="h-full w-full min-h-11 flex items-center justify-center border border-slate-800 bg-black rounded-sm relative group overflow-hidden shadow-inner shadow-black transition-all hover:border-slate-600">
                 <Image src="/knife.jpeg" alt="Combat Knife" fill className="object-contain scale-[1.2] invert grayscale opacity-60 group-hover:opacity-100 group-hover:scale-[1.3] transition-all duration-300" />
              </div>
           </div>
@@ -59,7 +59,7 @@ export default function TacticalHUD({
       {/* BIG INVENTORY BUTTON */}
       <div className="flex-1 border border-slate-900 bg-[#050505] rounded-lg p-5 flex flex-col justify-center relative overflow-hidden group">
         {invNotice && (
-          <span className="absolute top-3 right-3 text-[10px] text-green-500 font-bold tracking-widest animate-pulse [text-shadow:_0_0_8px_rgba(34,197,94,0.6)]">
+          <span className="absolute top-3 right-3 text-[10px] text-green-500 font-bold tracking-widest animate-pulse [text-shadow:0_0_8px_rgba(34,197,94,0.6)]">
             {invNotice}
           </span>
         )}
