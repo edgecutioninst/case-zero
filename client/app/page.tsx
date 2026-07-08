@@ -71,7 +71,10 @@ export default function GameDashboard() {
 
     const loadSaveFile = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/state/${userEmail}`);
+        
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const res = await fetch(`${API_URL}/api/state/${userEmail}`);
+
         const data = await res.json();
         
         if (data.status === "success") {
