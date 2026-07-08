@@ -61,6 +61,8 @@ export default function GameDashboard() {
   const { data: session, status } = useSession();
   const userEmail = session?.user?.email;
 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
   useEffect(() => {
     if (status === 'loading') return;
     
@@ -71,10 +73,7 @@ export default function GameDashboard() {
 
     const loadSaveFile = async () => {
       try {
-        
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         const res = await fetch(`${API_URL}/api/state/${userEmail}`);
-
         const data = await res.json();
         
         if (data.status === "success") {
@@ -93,7 +92,6 @@ export default function GameDashboard() {
           setHasManorKey(data.has_manor_key);
           setHasChurchKey(data.has_church_key);
           setIsGameOver(data.is_game_over);
-          // Catch the win state on load!
           setIsGameWon(data.is_game_won || data.is_won || false); 
         }
       } catch (error) {
@@ -104,7 +102,7 @@ export default function GameDashboard() {
     };
 
     loadSaveFile();
-  }, [session, status, userEmail]);
+  }, [session, status, userEmail, API_URL]);
 
   useEffect(() => {
     if (scrollEndRef.current) scrollEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -124,10 +122,8 @@ export default function GameDashboard() {
     setIsProcessing(true);
     
     try {
-      // Tell backend to wipe the save
-      await fetch(`http://localhost:8000/api/reset/${userEmail}`, { method: 'DELETE' });
+      await fetch(`${API_URL}/api/reset/${userEmail}`, { method: 'DELETE' });
       
-      // Reset all local frontend state
       setTerminalLog([INTRO_MESSAGE]);
       setHealth(100);
       setAmmo(8);
@@ -135,7 +131,7 @@ export default function GameDashboard() {
       setHasManorKey(false);
       setHasChurchKey(false);
       setIsGameOver(false);
-      setIsGameWon(false); // Make sure to reset the win screen too!
+      setIsGameWon(false); 
       setShowRetryConfirm(false);
     } catch (e) {
       console.error("Failed to restart:", e);
@@ -154,7 +150,7 @@ export default function GameDashboard() {
     setIsProcessing(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/action', {
+      const response = await fetch(`${API_URL}/api/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: userEmail, action: actionText })
