@@ -14,9 +14,27 @@ export default function GameModals({
   showInventory,    
   setShowInventory, 
   intelFiles,
-  onRestart 
+  onRestart,
+  isGameWon
 }: any) {
   
+  if (isGameWon) {
+    return (
+      <div className="absolute inset-0 z-60 bg-black/95 flex flex-col items-center justify-center p-8 backdrop-blur-md">
+         <h1 className="text-6xl text-cyan-500 font-bold tracking-[0.3em] mb-4 drop-shadow-[0_0_25px_rgba(6,182,212,0.8)] [text-shadow:0_0_15px_rgb(34_211_238)]">
+             [EXTRACTION SUCCESSFUL]
+         </h1>
+         <p className="text-cyan-900 font-mono tracking-widest text-xl mb-12">CASE ZERO &mdash; SURVIVED.</p>
+         <button 
+             onClick={onRestart}
+             className="px-8 py-4 bg-cyan-950/20 hover:bg-cyan-900/40 text-cyan-500 font-bold tracking-widest border border-cyan-900/50 rounded transition-all shadow-[0_0_15px_rgba(6,182,212,0.1)] hover:shadow-[0_0_30px_rgba(6,182,212,0.4)] hover:border-cyan-700"
+         >
+             BEGIN NEW OPERATION
+         </button>
+      </div>
+    );
+  }
+
   if (isGameOver) {
     return (
       <div className="absolute inset-0 z-60 bg-black/95 flex flex-col items-center justify-center p-8 backdrop-blur-md">

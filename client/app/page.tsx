@@ -23,13 +23,13 @@ const locationCoords: Record<string, { top: string, left: string }> = {
   chiefs_manor: { top: '50%', left: '61%' },
   smithy: { top: '80%', left: '76%' },
   cultist_camp: { top: '40%', left: '45%' },
-  survivor_hideout: { top: '80%', left: '58%' },
+  survivor_hideout: { top: '73%', left: '58%' },
   inrfs_camp: { top: '87%', left: '15%' },
 };
 
 const INTRO_MESSAGE = { 
   role: 'system', 
-  text: "[RADIO LINK ESTABLISHED]\n\nOp-Center: 'Rookie, you are at the Blackwood gates. The entire village vanished overnight, including the Chief. Our last squad went dark at the INRFS camp after reporting an unidentified entity.'\n\n'Your loadout is light: a sidearm, limited rounds, and a combat knife. Conserve your ammo. Breach the village, find out where everyone went, and survive.'\n\n'I am monitoring your vitals remotely. If you lose your bearings, hit [ Call Handler ] and I will give you a tactical read. Keep your eyes open. Over.'\n\n[TRANSMISSION END]\n\nYou stand at the desolate entrance of Blackwood. The silence is deafening.", 
+  text: "[RADIO LINK ESTABLISHED]\n\nOp-Center: 'Rookie, listen closely. Blackwood village is completely dark. The Chief is missing, and our last squad vanished near the INRFS camp. Their final transmission mentioned... something in the ice.'\n\n'You have your sidearm, a combat knife, and six rounds. Do not waste them.'\n\n'Breach the main gates, push into the village square, and find out what happened to our men. Survive.'\n\n[TRANSMISSION END]\n\nThe freezing wind howls, biting through your tactical gear. The rusted iron gates of Blackwood loom directly in front of you.", 
   isTyping: false 
 };
 
@@ -51,6 +51,7 @@ export default function GameDashboard() {
   const [showInventory, setShowInventory] = useState(false);
 
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isGameWon, setIsGameWon] = useState(false);
 
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const noticeTimerRef = useRef<any>(null);
@@ -90,6 +91,8 @@ export default function GameDashboard() {
           setHasManorKey(data.has_manor_key);
           setHasChurchKey(data.has_church_key);
           setIsGameOver(data.is_game_over);
+          // Catch the win state on load!
+          setIsGameWon(data.is_game_won || data.is_won || false); 
         }
       } catch (error) {
         console.error("Failed to load save file:", error);
@@ -131,6 +134,7 @@ export default function GameDashboard() {
       setHasManorKey(false);
       setHasChurchKey(false);
       setIsGameOver(false);
+      setIsGameWon(false); // Make sure to reset the win screen too!
       setShowRetryConfirm(false);
     } catch (e) {
       console.error("Failed to restart:", e);
@@ -140,7 +144,7 @@ export default function GameDashboard() {
   };
 
   const handlePlayerAction = async (actionText: string) => {
-    if (!actionText.trim() || isProcessing || isGameOver || !userEmail) return;
+    if (!actionText.trim() || isProcessing || isGameOver || isGameWon || !userEmail) return;
 
     setTerminalLog(prev => prev.map(log => ({ ...log, isTyping: false })));
     setTerminalLog(prev => [...prev, { role: 'user', text: `> ${actionText}`, isTyping: false }]);
@@ -166,6 +170,8 @@ export default function GameDashboard() {
         if (data.has_manor_key && !hasManorKey) { setHasManorKey(true); showNotification('MANOR KEY'); }
         if (data.has_church_key && !hasChurchKey) { setHasChurchKey(true); showNotification('CHURCH KEY'); }
         if (data.is_over === true || data.updated_health <= 0) setIsGameOver(true);
+        
+        if (data.is_game_won === true || data.is_won === true) setIsGameWon(true); 
       }
     } catch (e) {
       setTerminalLog(prev => [...prev, { role: 'system', text: "[ERROR] Signal lost.", isTyping: true }]);
@@ -176,7 +182,7 @@ export default function GameDashboard() {
   };
 
   const handleCallHandler = () => {
-    if (isProcessing || isGameOver || isCalling) return;
+    if (isProcessing || isGameOver || isGameWon || isCalling) return;
     setIsCalling(true);
     setTimeout(() => {
       setIsCalling(false);
@@ -208,6 +214,7 @@ export default function GameDashboard() {
       
       <GameModals 
         isGameOver={isGameOver}
+        isGameWon={isGameWon} 
         showRetryConfirm={showRetryConfirm} setShowRetryConfirm={setShowRetryConfirm}
         showLogoutConfirm={showLogoutConfirm} setShowLogoutConfirm={setShowLogoutConfirm}
         activeModal={activeModal} setActiveModal={setActiveModal}
@@ -234,7 +241,7 @@ export default function GameDashboard() {
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handlePlayerAction(inputText); }}
-                disabled={isProcessing || isGameOver}
+                disabled={isProcessing || isGameOver || isGameWon} // DISABLED ON WIN
                 className="w-full bg-transparent outline-none text-slate-200 focus:ring-0 placeholder:text-slate-600 [text-shadow:0_0_8px_rgb(226_232_240/40%)] text-lg"
                 placeholder="Type your action and press Enter..." autoFocus
               />
@@ -248,22 +255,22 @@ export default function GameDashboard() {
                 <button onClick={() => setShowLogoutConfirm(true)} className="px-3 py-2 bg-black hover:bg-red-950/20 text-red-700 hover:text-red-500 rounded text-xs font-bold border border-red-900/30 transition-all shadow-md">
                   [ABORT]
                 </button>
-                <button onClick={() => setShowRetryConfirm(true)} disabled={isGameOver || isProcessing || isCalling} className="px-3 py-2 bg-black hover:bg-yellow-950/20 text-yellow-700 hover:text-yellow-500 rounded text-xs font-bold border border-yellow-900/30 transition-all shadow-md disabled:opacity-50">
+                <button onClick={() => setShowRetryConfirm(true)} disabled={isGameOver || isGameWon || isProcessing || isCalling} className="px-3 py-2 bg-black hover:bg-yellow-950/20 text-yellow-700 hover:text-yellow-500 rounded text-xs font-bold border border-yellow-900/30 transition-all shadow-md disabled:opacity-50">
                   [RESTART]
                 </button>
               </div>
 
               <div className="flex justify-center gap-4">
-                <button onClick={() => setShowInput(true)} disabled={isGameOver || isCalling} className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-cyan-400 rounded text-sm font-bold border border-slate-700 transition-all shadow-md disabled:opacity-50">
+                <button onClick={() => setShowInput(true)} disabled={isGameOver || isGameWon || isCalling} className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-cyan-400 rounded text-sm font-bold border border-slate-700 transition-all shadow-md disabled:opacity-50">
                   Take a Turn
                 </button>
-                <button onClick={() => handlePlayerAction("I hold my position, stay quiet, and cautiously observe my surroundings.")} disabled={isGameOver || isProcessing || isCalling} className="px-6 py-2 bg-black hover:bg-slate-950 text-slate-500 hover:text-slate-300 rounded text-sm border border-slate-900 transition-colors disabled:opacity-50">
+                <button onClick={() => handlePlayerAction("I hold my position, stay quiet, and cautiously observe my surroundings.")} disabled={isGameOver || isGameWon || isProcessing || isCalling} className="px-6 py-2 bg-black hover:bg-slate-950 text-slate-500 hover:text-slate-300 rounded text-sm border border-slate-900 transition-colors disabled:opacity-50">
                   Continue
                 </button>
               </div>
               
               <div className="flex justify-end">
-                <button onClick={handleCallHandler} disabled={isGameOver || isProcessing || isCalling} className={`px-5 py-2 bg-black hover:bg-green-950/20 ${isCalling ? 'text-green-400 border-green-400 animate-pulse' : 'text-green-600 border-green-900/30'} rounded text-xs font-bold border transition-all shadow-md flex items-center gap-2 disabled:opacity-50`}>
+                <button onClick={handleCallHandler} disabled={isGameOver || isGameWon || isProcessing || isCalling} className={`px-5 py-2 bg-black hover:bg-green-950/20 ${isCalling ? 'text-green-400 border-green-400 animate-pulse' : 'text-green-600 border-green-900/30'} rounded text-xs font-bold border transition-all shadow-md flex items-center gap-2 disabled:opacity-50`}>
                   <span className={`w-2 h-2 rounded-full ${isCalling ? 'bg-green-400 animate-ping' : 'bg-green-500 animate-pulse'}`}></span>
                   {isCalling ? '[ ENCRYPTING... ]' : 'Call Handler'}
                 </button>

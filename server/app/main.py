@@ -7,7 +7,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from sqlmodel import Session
+from sqlmodel import Session, text
 
 # Import our new database components
 from app.database import GameState, get_session, create_db_and_tables
@@ -25,7 +25,7 @@ def on_startup():
 
 INITIAL_TRANSMISSION = {
     "role": "system",
-    "text": "[RADIO LINK ESTABLISHED]\n\nOp-Center: 'Rookie, you are at the Blackwood gates. The entire village vanished overnight, including the Chief. Our last squad went dark at the INRFS camp after reporting an unidentified entity.'\n\n'Your loadout is light: a sidearm, limited rounds, and a combat knife. Conserve your ammo. Breach the village, find out where everyone went, and survive.'\n\n'I am monitoring your vitals remotely. If you lose your bearings, hit [ Call Handler ] and I will give you a tactical read. Keep your eyes open. Over.'\n\n[TRANSMISSION END]\n\nYou stand at the desolate entrance of Blackwood. The silence is deafening.",
+    "text": "[RADIO LINK ESTABLISHED]\n\nOp-Center: 'Rookie, listen closely. Blackwood village is completely dark. The Chief is missing, and our last squad vanished near the INRFS camp. Their final transmission mentioned... something in the ice.'\n\n'You have your sidearm, a combat knife, and six rounds. Do not waste them.'\n\n'Breach the main gates, push into the village square, and find out what happened to our men. Survive.'\n\n[TRANSMISSION END]\n\nThe freezing wind howls, biting through your tactical gear. The rusted iron gates of Blackwood loom directly in front of you.",
 }
 
 

@@ -9,7 +9,7 @@ export default function TacticalHUD({
         
       {/* PINNED MAP */}
       <div className="border border-slate-900 bg-[#050505] rounded-lg relative h-56 overflow-hidden shadow-lg shadow-black group">
-        <Image src="/map.jpeg" alt="Tactical Radar" fill className="object-cover grayscale contrast-125 opacity-70 group-hover:opacity-100 transition-opacity duration-500" />
+        <Image src="/map2.jpeg" alt="Tactical Radar" fill className="object-cover grayscale contrast-125 opacity-70 group-hover:opacity-100 transition-opacity duration-500" />
         <div className="absolute inset-0 bg-cyan-900/10 pointer-events-none mix-blend-overlay"></div>
         <div className="absolute top-2 right-3 z-30">
             <p className="text-[10px] text-cyan-500 font-bold tracking-widest bg-black/60 px-2 py-1 rounded border border-cyan-900/50 drop-shadow-md">
