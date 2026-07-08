@@ -9,15 +9,12 @@ from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from sqlmodel import Session, text
 
-# Import our new database components
 from app.database import GameState, get_session, create_db_and_tables
 from app.agent import game_engine
 
-# Initialize the app
 app = FastAPI(title="Case Zero API")
 
 
-# Ensure the database tables are created when the server starts
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
@@ -39,7 +36,6 @@ app.add_middleware(
 )
 
 
-# Next.js sends here
 class PlayerAction(BaseModel):
     email: str
     action: str
@@ -63,7 +59,7 @@ def process_turn(data: PlayerAction, session: Session = Depends(get_session)):
         session.add(current_state)
 
     # 2. Append the new user prompt to the DB History (and limit to 20)
-    # We make a copy of the list so SQLAlchemy knows it changed
+    #  Make a copy of the list so SQLAlchemy knows it changed
     new_history = (
         current_state.chat_history.copy() if current_state.chat_history else []
     )
@@ -71,7 +67,7 @@ def process_turn(data: PlayerAction, session: Session = Depends(get_session)):
     new_history = new_history[-20:]
     current_state.chat_history = new_history
 
-    # 3. Grab ONLY the last 4 messages to give the AI context
+    # 3. Grab the last 4 messages to give the AI context
     context_messages = []
     for msg in new_history[-4:]:
         if msg["role"] == "user":
@@ -87,7 +83,7 @@ def process_turn(data: PlayerAction, session: Session = Depends(get_session)):
         "game_state": current_state,
     }
 
-    # 5. RUN THE GAME MASTER
+    # 5. Run Game Engine
     print(f"Running AI for {data.email}...")
     max_retries = 3
     final_text = ""
@@ -103,14 +99,13 @@ def process_turn(data: PlayerAction, session: Session = Depends(get_session)):
             if attempt == max_retries - 1:
                 final_text = "A sudden, violent spike of static rings in your ears, causing your vision to blur. You lose your train of thought. \n\n[TERMINAL ERROR: Data corruption detected. Please rephrase your last action.]"
 
-    # 6. Append the AI's response to the DB History (and limit to 20 again)
+    # 6. Append the AI's response to the DB History
     final_history = current_state.chat_history.copy()
     final_history.append({"role": "ai", "text": final_text})
     final_history = final_history[-20:]
     current_state.chat_history = final_history
 
-    # 7. COMMIT TO DATABASE
-    # This securely saves the updated health, ammo, trust, and chat history to Postgres!
+    # 7. Push to DB
     session.add(current_state)
     session.commit()
     session.refresh(current_state)
@@ -143,14 +138,13 @@ def process_turn(data: PlayerAction, session: Session = Depends(get_session)):
 def get_save_file(email: str, session: Session = Depends(get_session)):
     """Fetches the player's current save file on page load."""
 
-    # Check the database for the user
+    # Check DB for the user
     current_state = session.get(GameState, email)
 
-    # If they don't exist yet, tell the frontend it's a new game
     if not current_state:
         return {"status": "new_game", "message": "No save file found. Ready to start."}
 
-    # If they do exist, return their entire state!
+    # If exist, return their entire state
     return {
         "status": "success",
         "chat_history": current_state.chat_history,

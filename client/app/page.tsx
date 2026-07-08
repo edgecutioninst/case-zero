@@ -56,7 +56,6 @@ export default function GameDashboard() {
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const noticeTimerRef = useRef<any>(null);
 
-  // Use the extracted constant
   const [terminalLog, setTerminalLog] = useState([INTRO_MESSAGE]);
 
   const { data: session, status } = useSession();
@@ -117,7 +116,6 @@ export default function GameDashboard() {
     }, 4000);
   };
 
-  // --- NEW RESTART FUNCTION ---
   const handleRestart = async () => {
     if (!userEmail) return;
     setIsProcessing(true);

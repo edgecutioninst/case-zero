@@ -7,9 +7,8 @@ from langgraph.graph.message import add_messages
 from langchain_core.messages import SystemMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-# ---------------------------------------------------------
-# 1. The Lore Dictionary
-# ---------------------------------------------------------
+# Lore Dictionary
+
 ROOM_LORE = {
     "village_entrance": "A desolate dirt path leading into Blackwood. Thick fog chokes the air, and a biting, unnatural frost clings to the dead trees. The temperature is dropping fast.",
     "old_church": "A crumbling sanctuary. The pews are violently pushed against the walls to form makeshift barricades. Deep, jagged scratch marks tear through the heavy oak altar. The air smells of ozone and old copper.",
@@ -187,9 +186,9 @@ def build_system_prompt(state: GameState) -> str:
     return prompt
 
 
-# ---------------------------------------------------------
-# 4. The LangGraph State & Engine
-# ---------------------------------------------------------
+# Langgraph and State Engine
+
+
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     game_state: GameState
@@ -237,7 +236,7 @@ def generate_narrative(state: AgentState):
         current_game_state.notable_events.append(ai_action.new_notable_event)
 
     if ai_action.new_known_npc:
-        # We generate a unique ID for the new NPC and store their description
+        # generate a unique ID for the new NPC and store their description
         npc_id = f"npc_{len(current_game_state.known_npcs) + 1}"
         current_game_state.known_npcs[npc_id] = ai_action.new_known_npc
 
@@ -245,7 +244,7 @@ def generate_narrative(state: AgentState):
         current_game_state.inventory.append(ai_action.new_inventory_item)
 
     # 4. World Navigation Updates
-    # We check if the room the AI gave us actually exists in our lore dictionary!
+    # check if the room the AI gave us actually exists in our lore dictionary!
     if ai_action.new_room and ai_action.new_room in ROOM_LORE:
         current_game_state.current_room = ai_action.new_room
 

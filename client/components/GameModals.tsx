@@ -120,7 +120,7 @@ export default function GameModals({
                   key={intel.id}
                   onClick={() => {
                      setShowInventory(false);
-                     setActiveModal(intel.id); // Clicking opens the image viewer
+                     setActiveModal(intel.id); 
                   }}
                   className="w-full text-left p-4 border border-slate-800 bg-black hover:border-cyan-700 hover:bg-cyan-950/20 transition-all flex items-center justify-between group rounded shadow-sm"
                 >
