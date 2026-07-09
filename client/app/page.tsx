@@ -29,7 +29,7 @@ const locationCoords: Record<string, { top: string, left: string }> = {
 
 const INTRO_MESSAGE = { 
   role: 'system', 
-  text: "[RADIO LINK ESTABLISHED]\n\nOp-Center: 'Rookie, listen closely. Blackwood village is completely dark. The Chief is missing, and our last squad vanished near the INRFS camp. Their final transmission mentioned... something in the ice.'\n\n'You have your sidearm, a combat knife, and six rounds. Do not waste them.'\n\n'Breach the main gates, push into the village square, and find out what happened to our men. Survive.'\n\n[TRANSMISSION END]\n\nThe freezing wind howls, biting through your tactical gear. The rusted iron gates of Blackwood loom directly in front of you.", 
+  text: "[RADIO LINK ESTABLISHED]\n\nOp-Center: 'Rookie, listen closely. Blackwood village is completely dark. The Chief is missing, and our last squad vanished near the INRFS camp. Their final transmission mentioned... something in the ice.'\n\n'You have your sidearm, a combat knife, and eight rounds. Do not waste them.'\n\n'Breach the main gates, push into the village square, and find out what happened to our men. Survive.'\n\n[TRANSMISSION END]\n\nThe freezing wind howls, biting through your tactical gear. The rusted iron gates of Blackwood loom directly in front of you.", 
   isTyping: false 
 };
 
