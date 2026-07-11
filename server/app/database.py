@@ -14,8 +14,11 @@ class GameState(SQLModel, table=True):
     ammo: int = Field(default=8)
     current_room: str = Field(default="village_entrance")
 
+    known_npcs: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    notable_events: List[str] = Field(default_factory=list, sa_column=Column(JSON))
     inventory: List[str] = Field(
-        default=["pistol", "torch", "knife", "map"], sa_column=Column(JSON)
+        default_factory=lambda: ["pistol", "torch", "knife", "map"],
+        sa_column=Column(JSON),
     )
 
     # --- PROGRESSION FLAGS ---
@@ -27,12 +30,10 @@ class GameState(SQLModel, table=True):
     villager_trust: int = Field(default=0)
     cultists_trust: int = Field(default=0)
     leader_trust: int = Field(default=0)
-    known_npcs: dict = Field(default={}, sa_column=Column(JSON))
 
     # --- HIDDEN STATS ---
     noise_level: int = Field(default=0)
     entity_awareness: int = Field(default=0)
-    notable_events: List[str] = Field(default=[], sa_column=Column(JSON))
 
     is_game_over: bool = Field(default=False)
     is_game_won: bool = Field(default=False)

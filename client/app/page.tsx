@@ -53,8 +53,12 @@ export default function GameDashboard() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isGameWon, setIsGameWon] = useState(false);
 
+  
+  const [showEndOverlay, setShowEndOverlay] = useState(false);
+
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const noticeTimerRef = useRef<any>(null);
+  const endGameTimerRef = useRef<any>(null);
 
   const [terminalLog, setTerminalLog] = useState([INTRO_MESSAGE]);
 
@@ -91,8 +95,15 @@ export default function GameDashboard() {
           if (data.current_room) setCurrentRoom(data.current_room);
           setHasManorKey(data.has_manor_key);
           setHasChurchKey(data.has_church_key);
-          setIsGameOver(data.is_game_over);
-          setIsGameWon(data.is_game_won || data.is_won || false); 
+
+          const loadedGameOver = data.is_game_over;
+          const loadedGameWon = data.is_game_won || data.is_won || false;
+          setIsGameOver(loadedGameOver);
+          setIsGameWon(loadedGameWon);
+
+          if (loadedGameOver || loadedGameWon) {
+            setShowEndOverlay(false);
+          }
         }
       } catch (error) {
         console.error("Failed to load save file:", error);
@@ -108,6 +119,13 @@ export default function GameDashboard() {
     if (scrollEndRef.current) scrollEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [terminalLog]);
 
+  // Clean up any pending safety-net timer if the component unmounts
+  useEffect(() => {
+    return () => {
+      if (endGameTimerRef.current) clearTimeout(endGameTimerRef.current);
+    };
+  }, []);
+
   const showNotification = (itemName: string) => {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     setInvNotice(`[ ${itemName} ADDED IN INVENTORY ]`);
@@ -119,6 +137,12 @@ export default function GameDashboard() {
 
   const handleRestart = async () => {
     if (!userEmail) return;
+
+    if (endGameTimerRef.current) {
+      clearTimeout(endGameTimerRef.current);
+      endGameTimerRef.current = null;
+    }
+
     setIsProcessing(true);
     
     try {
@@ -132,6 +156,7 @@ export default function GameDashboard() {
       setHasChurchKey(false);
       setIsGameOver(false);
       setIsGameWon(false); 
+      setShowEndOverlay(false);
       setShowRetryConfirm(false);
     } catch (e) {
       console.error("Failed to restart:", e);
@@ -166,9 +191,23 @@ export default function GameDashboard() {
 
         if (data.has_manor_key && !hasManorKey) { setHasManorKey(true); showNotification('MANOR KEY'); }
         if (data.has_church_key && !hasChurchKey) { setHasChurchKey(true); showNotification('CHURCH KEY'); }
-        if (data.is_over === true || data.updated_health <= 0) setIsGameOver(true);
-        
-        if (data.is_game_won === true || data.is_won === true) setIsGameWon(true); 
+
+        const gameOver = data.is_over === true || data.updated_health <= 0;
+        const gameWon = data.is_game_won === true || data.is_won === true;
+
+        if (gameOver) setIsGameOver(true);
+        if (gameWon) setIsGameWon(true);
+
+        // Don't show the overlay yet — let the player read the final narrative
+        // at their own pace and open the debrief manually via the banner button.
+        // Safety net: auto-reveal after a while in case they wander off/forget.
+        if (gameOver || gameWon) {
+          if (endGameTimerRef.current) clearTimeout(endGameTimerRef.current);
+          endGameTimerRef.current = setTimeout(() => {
+            setShowEndOverlay(true);
+            endGameTimerRef.current = null;
+          }, 60000); // 60s safety net, purely a fallback
+        }
       }
     } catch (e) {
       setTerminalLog(prev => [...prev, { role: 'system', text: "[ERROR] Signal lost.", isTyping: true }]);
@@ -206,12 +245,16 @@ export default function GameDashboard() {
     );
   }
 
+  const gameHasEnded = isGameOver || isGameWon;
+
   return (
     <div className="h-screen overflow-hidden bg-black text-slate-300 p-4 font-mono flex gap-4 relative selection:bg-cyan-900 selection:text-cyan-100">
       
+      {/* Only pass the ended flags through to the fullscreen modal once the
+          player has actually chosen to open the debrief */}
       <GameModals 
-        isGameOver={isGameOver}
-        isGameWon={isGameWon} 
+        isGameOver={showEndOverlay && isGameOver}
+        isGameWon={showEndOverlay && isGameWon} 
         showRetryConfirm={showRetryConfirm} setShowRetryConfirm={setShowRetryConfirm}
         showLogoutConfirm={showLogoutConfirm} setShowLogoutConfirm={setShowLogoutConfirm}
         activeModal={activeModal} setActiveModal={setActiveModal}
@@ -230,7 +273,30 @@ export default function GameDashboard() {
         />
 
         <div className="p-4 border-t border-slate-900 min-h-20 flex items-center justify-center bg-black">
-          {showInput ? (
+          {gameHasEnded && !showEndOverlay ? (
+            // Non-blocking banner 
+            <div className="flex items-center gap-4">
+              <span className={`text-sm font-bold tracking-widest ${isGameWon ? 'text-cyan-500' : 'text-red-600'}`}>
+                {isGameWon ? '[ MISSION COMPLETE — DEBRIEF READY ]' : '[ OPERATION FAILED — DEBRIEF READY ]'}
+              </span>
+              <button
+                onClick={() => {
+                  if (endGameTimerRef.current) {
+                    clearTimeout(endGameTimerRef.current);
+                    endGameTimerRef.current = null;
+                  }
+                  setShowEndOverlay(true);
+                }}
+                className={`px-5 py-2 rounded text-xs font-bold border transition-all shadow-md ${
+                  isGameWon
+                    ? 'bg-cyan-950/20 hover:bg-cyan-900/40 text-cyan-500 border-cyan-900/50'
+                    : 'bg-red-950/20 hover:bg-red-900/40 text-red-500 border-red-900/50'
+                }`}
+              >
+                [ VIEW DEBRIEF ]
+              </button>
+            </div>
+          ) : showInput ? (
             <div className="flex items-center gap-3 w-full max-w-2xl px-2">
               <span className="text-cyan-400 font-bold [text-shadow:0_0_10px_rgb(34_211_238/60%)]">&gt;</span>
               <input 

@@ -1,0 +1,23 @@
+
+services:
+  api:
+    build: 
+      context: ./server
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./server/.env 
+    restart: always
+
+  web:
+    build:
+      context: ./client
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./client/.env 
+    depends_on:
+      - api
+    restart: always
