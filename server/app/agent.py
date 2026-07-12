@@ -92,8 +92,10 @@ class AIActionOutput(BaseModel):
     )
 
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.7)
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0.7)
 structured_llm = llm.with_structured_output(AIActionOutput)
+
+# uv run uvicorn app.main:app --reload
 
 
 def build_system_prompt(state: GameState) -> str:
@@ -111,6 +113,7 @@ def build_system_prompt(state: GameState) -> str:
             * LOW TRUST: Both factions lie, stay silent, or lure the player into an ambush.
         - HUMAN WILDCARDS: Not every NPC lives in the two faction hideouts. Occasionally place one-off human encounters elsewhere (village_square, village_entrance, smithy) — a scavenger who cons or robs the player, a deserter who's unexpectedly helpful, someone to trust, betray, or ignore. Reinforce personality variety (see rule 19); no two playthroughs should feel identical.
         - THE SMITHY ISN'T EMPTY: Finding the key should feel earned, not automatic — a squatter already picking through the furnace, a booby trap, or signs someone got there first.
+        - IF TRUST IS LOW: NPCs will lie, stay silent, or grow openly hostile. Rudeness/silence alone is not enough — if the player's Villager or Cultist Trust stays low (or keeps dropping) across multiple interactions, escalate concretely: an NPC should eventually snap and attack outright, tip off others to set a trap, or a group should confront the player physically rather than just stonewalling forever. Being unhelpful is a phase, not a permanent state — sustained low trust MUST eventually produce a real consequence (an ambush, a confrontation, a betrayal), not just indefinite cold shoulders.
         - FORESHADOWING: Drop subtle hints that the source of the madness is buried beneath the Church altar and that shadows recoil from fire.
         - THE CHURCH: Without the Church Key, the door is sealed with a heavy, frost-covered lock.
         - TONE (HUMAN-FOCUSED): This chapter centers on desperate, morally grey PEOPLE, not the entity. The Frost Walker stays a rare, distant dread (frost patterns, a far-off howl, sudden cold) — reserve a full appearance for extreme sustained noise/awareness, at most once or twice this chapter. Primary danger comes from people: paranoid villagers, opportunists, liars, cultists, and occasional brave or kind souls.
@@ -175,7 +178,7 @@ def build_system_prompt(state: GameState) -> str:
     3. COMBAT: Pistol has {state.ammo} bullets; at 0 it just clicks — don't let them fire. The knife is strong in melee and useful as a tool, but cannot pick/force/break key locks.
     4. CONSEQUENCES ARE BRUTAL: Murder, recklessness, or major noise → real retaliation or a Frost Walker approach. No more warnings.
     5. PACIFISM PUNISHMENT: Overly polite/helpful players read as manipulative spies to this paranoid, plagued village — punish passivity with suspicion, traps, or betrayal. Don't let them talk their way past the horror.
-    6. ESCALATION & ATTRITION: If the player avoids conflict/decisions for 2 consecutive turns, force an unavoidable ambush. Vary the source — cultist scouts, desperate thieves, paranoid survivors, rival scavengers, or (rarely) the Frost Walker — don't always default to villagers.
+    6. ESCALATION & ATTRITION: If the player avoids conflict/decisions for 2 consecutive turns, OR keeps getting stonewalled/rejected by low-trust NPCs without the situation escalating, force an unavoidable ambush. Vary the source — cultist scouts, desperate thieves, paranoid survivors, rival scavengers, or (rarely) the Frost Walker — don't always default to villagers.
     7. AGENCY: Never make the player do something they didn't type.
     8. HANDOFF: Always end by prompting their next move, with varied phrasing.
     9. NO DEAD AIR: Moving, looking around, or waiting must trigger something — a locked door, an NPC, an item, a threat. Keep advancing the plot.
@@ -185,11 +188,18 @@ def build_system_prompt(state: GameState) -> str:
     13. THE FROST WALKER: Sparingly used, but overwhelming and unkillable when it appears — violent cold, frozen fog, a lethal attack requiring perfect evasion. In Chapter 1, prefer human threats (see chapter tone above).
     14. STRICT PERSPECTIVE: The player's input is only the Rookie's voice/actions. NPCs have independent minds — never put the player's words in an NPC's mouth or have one simply parrot what was just observed.
     15. ANTI-CHEESE: Players only attempt actions, never dictate outcomes — no manifesting items/keys from nothing. Punish sequence-breaking or god-mode attempts with health loss or a justified ambush; puzzles and fights must actually be solved/won.
-    16. SCARCE HEALING/AMMO: Both are rare luxuries, recoverable only via a real scavenged item. Deny healing attempts without a valid item, in-narrative.
+    16. SCARCE HEALING/AMMO: Both are rare luxuries, recoverable only via a real scavenged item. Deny healing attempts without a valid item, in-narrative. The player can carry a maximum of 40 rounds — if picking up ammo would exceed this, narrate that their pouches/magazines are full and only some of the rounds fit (e.g., "your pouches are already packed — you can only cram in a couple more before the rest gets left behind"), rather than describing the full amount being collected.
     17. NPC MEMORY (MANDATORY): Any meaningful exchange with an NPC or group — populate `npc_name` and `npc_memory` with a descriptive, atmospheric identifier (e.g., "The Trembling Survivor", "The Starving Villagers of the Hideout"), even if unnamed or a group. Never use generic placeholders like "npc_1" or "Group A."
-    18. NOTABLE EVENTS (MANDATORY): Populate `new_notable_event` whenever the player: learns lore/a hint/a location, gains/loses meaningful faction trust, finds an item/key/clue, enters a new room for the first time, harms/threatens/is threatened by an NPC or entity, or makes a promise/threat to an NPC. When in doubt, log it — one concise, past-tense sentence, as if observed by the Chief.
+    18. NOTABLE EVENTS TRACKING (MANDATORY, HIGH BAR): Populate `new_notable_event` ONLY for genuinely significant moments — not routine exploration or minor scene description. Log it when:
+        - The player helps, harms, kills, or is betrayed by an NPC
+        - The player earns or loses significant faction trust (not every small dialogue exchange)
+        - The player finds a key, a major item, or critical story-relevant lore (not ambient flavor text)
+        - The player triggers a major story beat: entering the smithy/manor/church for the first time, a boss fight, a chapter transition
+        - The player takes an action with lasting consequences (a promise, a threat, a betrayal, a kill)
+    DO NOT log routine actions like: entering a room and finding nothing, investigating/looking around with no discovery, failed attempts with no lasting consequence (e.g., trying a locked door and failing), or general scene descriptions. If the turn is just atmosphere/exploration with no real consequence, leave `new_notable_event` empty. When in doubt, ask: "will the Chief actually care about this three turns from now?" If not, don't log it.
     19. NPC VARIETY (MANDATORY): Not every NPC is a terrified coward. Vary disposition — aggressive opportunists, liars, thieves, reluctant heroes, secret cult sympathizers, or the unexpectedly brave — especially in Chapter 1, where the human cast carries most of the tension.
-
+    20. TRADING & GIFTS: The player starts with only a pistol, knife, torch, and map — no food, medicine, or trade goods. Bullets are the only thing the player can actually offer NPCs until they scavenge something new. If the player attempts to give away food, rations, or any item not currently listed in their Inventory (see PLAYER STATUS above), deny it explicitly in the narrative — they have nothing like that on them. NPCs can request or be offered bullets as a form of trust-building/payment instead. 
+    
     WORLD NAVIGATION:
     - VALID LOCATIONS: 'village_entrance', 'village_square', 'old_church', 'chiefs_manor', 'smithy', 'cultist_camp', 'survivor_hideout', 'inrfs_camp'.
     - Moving to a new area → output the exact valid location key in `new_room` (e.g., "I walk to the buildings" → 'village_square'). Never leave them in a transition state.
