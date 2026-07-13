@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Image from 'next/image';
+import BgmPlayer from './BgmPlayer';
 
 export default function TacticalHUD({ 
   health, ammo, setShowInventory, invNotice, currentRoom, locationCoords 
@@ -25,16 +26,25 @@ export default function TacticalHUD({
         )}
       </div>
 
-      {/* VITALS & COMBAT */}
+      {/* VITALS & AMBIENCE */}
       <div className="border border-slate-900 bg-[#050505] rounded-lg p-6 flex flex-col gap-6">
-        <div>
-          <p className="text-xs text-slate-400 mb-2 font-bold tracking-widest">VITALS</p>
-          <div className="h-3 w-full bg-black rounded overflow-hidden border border-slate-900">
-            <div className="h-full bg-red-500 transition-all duration-500 shadow-[0_0_10px_rgba(185,28,28,0.5)]" style={{ width: `${health}%` }}></div>
+        <div className="flex w-full">
+          <div className="w-1/2 pr-4 border-r border-slate-900">
+            <p className="text-xs text-slate-400 mb-2 font-bold tracking-widest">VITALS</p>
+            <div className="h-3 w-full bg-black rounded overflow-hidden border border-slate-900">
+              <div className="h-full bg-red-500 transition-all duration-500 shadow-[0_0_10px_rgba(185,28,28,0.5)]" style={{ width: `${health}%` }}></div>
+            </div>
+            <p className="text-right text-[10px] mt-2 text-red-500 font-bold tracking-wider">{health}%</p>
           </div>
-          <p className="text-right text-[10px] mt-2 text-red-500 font-bold tracking-wider">{health}%</p>
+
+          <div className="w-1/2 pl-4 flex flex-col justify-between">
+            <p className="text-xs text-slate-400 font-bold tracking-widest mb-2">AMBIENCE</p>
+            <div className="flex-1 flex items-center">
+              <BgmPlayer />
+            </div>
+          </div>
         </div>
-        
+
         <div className="flex w-full mt-2">
           <div className="w-1/2 pr-4 border-r border-slate-900 flex flex-col justify-between">
             <div className="flex justify-between items-end mb-3">
