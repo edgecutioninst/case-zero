@@ -2,7 +2,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react';
 
-// --- Text Parser for Health Tags ---
 const renderColoredText = (text: string) => {
   if (!text) return null;
   const regex = /(\[HP INCREASED BY \d+%\]|\[HP DECREASED BY \d+%\])/g;
@@ -18,7 +17,6 @@ const renderColoredText = (text: string) => {
   });
 };
 
-// --- The Typewriter Effect ---
 const TypewriterText = ({ text, isTyping }: { text: string, isTyping: boolean }) => {
   const [displayedText, setDisplayedText] = useState(isTyping ? '' : text);
 
@@ -45,14 +43,14 @@ const TypewriterText = ({ text, isTyping }: { text: string, isTyping: boolean })
 
 export default function Terminal({ terminalLog, isProcessing, isGameOver, scrollRef }: any) {
   return (
-    <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#1e293b_transparent]">
+    <div className="flex-1 p-3 md:p-6 overflow-y-auto flex flex-col gap-4 md:gap-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 [scrollbar-width:thin] [scrollbar-color:#1e293b_transparent]">
       {terminalLog.map((log: any, index: number) => (
         <div 
           key={index} 
           className={
-            log.role === 'user' ? 'text-cyan-400 text-lg ml-4' : 
-            log.role === 'system' ? 'border-l-2 border-green-700/50 pl-4 py-1 text-green-500/90 text-[15px] leading-relaxed whitespace-pre-wrap' : 
-            'text-slate-300 text-lg leading-relaxed whitespace-pre-wrap'
+            log.role === 'user' ? 'text-cyan-400 text-base md:text-lg ml-2 md:ml-4' : 
+            log.role === 'system' ? 'border-l-2 border-green-700/50 pl-3 md:pl-4 py-1 text-green-500/90 text-[13px] md:text-[15px] leading-relaxed whitespace-pre-wrap' : 
+            'text-slate-300 text-base md:text-lg leading-relaxed whitespace-pre-wrap'
           }
         >
           {log.role === 'ai' && log.isTyping ? (
@@ -64,13 +62,13 @@ export default function Terminal({ terminalLog, isProcessing, isGameOver, scroll
       ))}
 
       {isProcessing && (
-        <p className="text-slate-500 text-lg animate-pulse">
+        <p className="text-slate-500 text-base md:text-lg animate-pulse">
           [TRANSMITTING SIGNAL...]
         </p>
       )}
 
       {!isProcessing && !isGameOver && (
-        <p className="text-slate-400 text-lg [text-shadow:0_0_10px_rgb(148_163_184/40%)] animate-pulse">
+        <p className="text-slate-400 text-base md:text-lg [text-shadow:0_0_10px_rgb(148_163_184/40%)] animate-pulse">
           &gt; Awaiting input...
         </p>
       )}

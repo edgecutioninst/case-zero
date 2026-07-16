@@ -50,10 +50,11 @@ export default function GameDashboard() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
 
+  const [showMobileHud, setShowMobileHud] = useState(false);
+
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isGameWon, setIsGameWon] = useState(false);
 
-  
   const [showEndOverlay, setShowEndOverlay] = useState(false);
 
   const scrollEndRef = useRef<HTMLDivElement>(null);
@@ -119,7 +120,6 @@ export default function GameDashboard() {
     if (scrollEndRef.current) scrollEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [terminalLog]);
 
-  // Clean up any pending safety-net timer if the component unmounts
   useEffect(() => {
     return () => {
       if (endGameTimerRef.current) clearTimeout(endGameTimerRef.current);
@@ -198,15 +198,12 @@ export default function GameDashboard() {
         if (gameOver) setIsGameOver(true);
         if (gameWon) setIsGameWon(true);
 
-        // Don't show the overlay yet — let the player read the final narrative
-        // at their own pace and open the debrief manually via the banner button.
-        // Safety net: auto-reveal after a while in case they wander off/forget.
         if (gameOver || gameWon) {
           if (endGameTimerRef.current) clearTimeout(endGameTimerRef.current);
           endGameTimerRef.current = setTimeout(() => {
             setShowEndOverlay(true);
             endGameTimerRef.current = null;
-          }, 60000); // 60s safety net, purely a fallback
+          }, 60000);
         }
       }
     } catch (e) {
@@ -238,7 +235,7 @@ export default function GameDashboard() {
     return (
       <div className="h-screen w-full bg-black flex flex-col items-center justify-center font-mono text-cyan-600">
          <div className="w-12 h-12 border-t-2 border-cyan-600 rounded-full animate-spin mb-6"></div>
-         <p className="tracking-widest text-sm animate-pulse drop-shadow-[0_0_8px_rgba(8,145,178,0.8)]">
+         <p className="tracking-widest text-sm animate-pulse drop-shadow-[0_0_8px_rgba(8,145,178,0.8)] text-center px-6">
            [ ESTABLISHING SECURE CONNECTION TO OP-CENTER... ]
          </p>
       </div>
@@ -248,10 +245,8 @@ export default function GameDashboard() {
   const gameHasEnded = isGameOver || isGameWon;
 
   return (
-    <div className="h-screen overflow-hidden bg-black text-slate-300 p-4 font-mono flex gap-4 relative selection:bg-cyan-900 selection:text-cyan-100">
+    <div className="h-dvh overflow-hidden bg-black text-slate-300 p-2 md:p-4 font-mono flex flex-col md:flex-row gap-2 md:gap-4 relative selection:bg-cyan-900 selection:text-cyan-100">
       
-      {/* Only pass the ended flags through to the fullscreen modal once the
-          player has actually chosen to open the debrief */}
       <GameModals 
         isGameOver={showEndOverlay && isGameOver}
         isGameWon={showEndOverlay && isGameWon} 
@@ -264,7 +259,16 @@ export default function GameDashboard() {
         onRestart={handleRestart} 
       />
 
-      <div className="w-2/3 border border-slate-900 bg-[#050505] rounded-lg flex flex-col relative overflow-hidden shadow-lg shadow-black">
+      {/* Floating mobile-only button */}
+      <button
+        onClick={() => setShowMobileHud(true)}
+        className="md:hidden fixed top-4 right-4 z-30 px-3 py-2 bg-black/90 backdrop-blur border border-cyan-900/50 text-cyan-400 rounded text-[10px] font-bold tracking-widest shadow-lg active:scale-95 transition-transform"
+      >
+        [ STATUS ]
+      </button>
+
+      {/* TERMINAL */}
+      <div className="flex-1 min-h-0 w-full md:w-2/3 border border-slate-900 bg-[#050505] rounded-lg flex flex-col relative overflow-hidden shadow-lg shadow-black">
         <Terminal 
           terminalLog={terminalLog} 
           isProcessing={isProcessing} 
@@ -272,11 +276,10 @@ export default function GameDashboard() {
           scrollRef={scrollEndRef} 
         />
 
-        <div className="p-4 border-t border-slate-900 min-h-20 flex items-center justify-center bg-black">
+        <div className="p-2 md:p-4 border-t border-slate-900 min-h-16 md:min-h-20 flex items-center justify-center bg-black">
           {gameHasEnded && !showEndOverlay ? (
-            // Non-blocking banner 
-            <div className="flex items-center gap-4">
-              <span className={`text-sm font-bold tracking-widest ${isGameWon ? 'text-cyan-500' : 'text-red-600'}`}>
+            <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4 text-center">
+              <span className={`text-xs md:text-sm font-bold tracking-widest ${isGameWon ? 'text-cyan-500' : 'text-red-600'}`}>
                 {isGameWon ? '[ MISSION COMPLETE — DEBRIEF READY ]' : '[ OPERATION FAILED — DEBRIEF READY ]'}
               </span>
               <button
@@ -297,24 +300,24 @@ export default function GameDashboard() {
               </button>
             </div>
           ) : showInput ? (
-            <div className="flex items-center gap-3 w-full max-w-2xl px-2">
+            <div className="flex items-center gap-2 md:gap-3 w-full max-w-2xl px-1 md:px-2">
               <span className="text-cyan-400 font-bold [text-shadow:0_0_10px_rgb(34_211_238/60%)]">&gt;</span>
               <input 
                 type="text" 
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handlePlayerAction(inputText); }}
-                disabled={isProcessing || isGameOver || isGameWon} // DISABLED ON WIN
-                className="w-full bg-transparent outline-none text-slate-200 focus:ring-0 placeholder:text-slate-600 [text-shadow:0_0_8px_rgb(226_232_240/40%)] text-lg"
-                placeholder="Type your action and press Enter..." autoFocus
+                disabled={isProcessing || isGameOver || isGameWon}
+                className="w-full bg-transparent outline-none text-slate-200 focus:ring-0 placeholder:text-slate-600 [text-shadow:0_0_8px_rgb(226_232_240/40%)] text-base md:text-lg"
+                placeholder="Type your action..." autoFocus
               />
-              <button onClick={() => setShowInput(false)} className="text-slate-500 hover:text-slate-300 text-xs font-bold transition-colors">
+              <button onClick={() => setShowInput(false)} className="text-slate-500 hover:text-slate-300 text-xs font-bold transition-colors shrink-0">
                 [CANCEL]
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-3 w-full items-center">
-              <div className="flex justify-start gap-3">
+            <div className="flex flex-col gap-2 md:grid md:grid-cols-3 w-full items-center">
+              <div className="flex justify-center md:justify-start gap-3 order-2 md:order-1">
                 <button onClick={() => setShowLogoutConfirm(true)} className="px-3 py-2 bg-black hover:bg-red-950/20 text-red-700 hover:text-red-500 rounded text-xs font-bold border border-red-900/30 transition-all shadow-md">
                   [ABORT]
                 </button>
@@ -323,16 +326,16 @@ export default function GameDashboard() {
                 </button>
               </div>
 
-              <div className="flex justify-center gap-4">
-                <button onClick={() => setShowInput(true)} disabled={isGameOver || isGameWon || isCalling} className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-cyan-400 rounded text-sm font-bold border border-slate-700 transition-all shadow-md disabled:opacity-50">
+              <div className="flex justify-center gap-3 md:gap-4 order-1 md:order-2">
+                <button onClick={() => setShowInput(true)} disabled={isGameOver || isGameWon || isCalling} className="px-4 md:px-6 py-2 bg-slate-900 hover:bg-slate-800 text-cyan-400 rounded text-xs md:text-sm font-bold border border-slate-700 transition-all shadow-md disabled:opacity-50">
                   Take a Turn
                 </button>
-                <button onClick={() => handlePlayerAction("I hold my position, stay quiet, and cautiously observe my surroundings.")} disabled={isGameOver || isGameWon || isProcessing || isCalling} className="px-6 py-2 bg-black hover:bg-slate-950 text-slate-500 hover:text-slate-300 rounded text-sm border border-slate-900 transition-colors disabled:opacity-50">
+                <button onClick={() => handlePlayerAction("I hold my position, stay quiet, and cautiously observe my surroundings.")} disabled={isGameOver || isGameWon || isProcessing || isCalling} className="px-4 md:px-6 py-2 bg-black hover:bg-slate-950 text-slate-500 hover:text-slate-300 rounded text-xs md:text-sm border border-slate-900 transition-colors disabled:opacity-50">
                   Continue
                 </button>
               </div>
               
-              <div className="flex justify-end">
+              <div className="flex justify-center md:justify-end order-3">
                 <button onClick={handleCallHandler} disabled={isGameOver || isGameWon || isProcessing || isCalling} className={`px-5 py-2 bg-black hover:bg-green-950/20 ${isCalling ? 'text-green-400 border-green-400 animate-pulse' : 'text-green-600 border-green-900/30'} rounded text-xs font-bold border transition-all shadow-md flex items-center gap-2 disabled:opacity-50`}>
                   <span className={`w-2 h-2 rounded-full ${isCalling ? 'bg-green-400 animate-ping' : 'bg-green-500 animate-pulse'}`}></span>
                   {isCalling ? '[ ENCRYPTING... ]' : 'Call Handler'}
@@ -343,11 +346,39 @@ export default function GameDashboard() {
         </div>
       </div>
 
-      <TacticalHUD 
-        health={health} ammo={ammo} 
-        setShowInventory={setShowInventory} 
-        invNotice={invNotice} currentRoom={currentRoom} locationCoords={locationCoords} 
-      />
+      {/* HUD */}
+      <div className="hidden md:flex md:w-1/3">
+        <TacticalHUD 
+          health={health} ammo={ammo} 
+          setShowInventory={setShowInventory} 
+          invNotice={invNotice} currentRoom={currentRoom} locationCoords={locationCoords} 
+        />
+      </div>
+
+      {/* HUD — mobile-only */}
+      {showMobileHud && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-end"
+          onClick={() => setShowMobileHud(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-h-[85vh] overflow-y-auto bg-black border-t border-slate-800 rounded-t-2xl p-4"
+          >
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-cyan-400 text-xs font-bold tracking-widest">[ STATUS PANEL ]</span>
+              <button onClick={() => setShowMobileHud(false)} className="text-slate-500 hover:text-slate-300 text-xs font-bold">
+                [CLOSE]
+              </button>
+            </div>
+            <TacticalHUD 
+              health={health} ammo={ammo} 
+              setShowInventory={setShowInventory} 
+              invNotice={invNotice} currentRoom={currentRoom} locationCoords={locationCoords} 
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
