@@ -10,6 +10,21 @@
 
 ![Case Zero Gameplay](https://github.com/user-attachments/assets/628d6a6f-4f2b-4871-b87a-c7f5c862bdb9)
 
+<p align="center">
+
+<img src="https://skillicons.dev/icons?i=nextjs,react,ts,tailwind,fastapi,python,postgresql&theme=dark" />
+
+</p>
+
+<p align="center">
+
+<img src="https://img.shields.io/badge/NextAuth-black?style=for-the-badge&logo=auth0&logoColor=white"/>
+<img src="https://img.shields.io/badge/LangGraph-6C47FF?style=for-the-badge"/>
+<img src="https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge"/>
+<img src="https://img.shields.io/badge/SQLModel-CC6699?style=for-the-badge"/>
+
+</p>
+
 ---
 
 # Mission Brief
